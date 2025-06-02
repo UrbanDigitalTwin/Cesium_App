@@ -502,4 +502,16 @@ window.onload = function() {
         return null;
       }
     }
+  
+    // Inject message into Cesium base layer picker dropdown
+    setTimeout(() => {
+      const baseLayerPickerDropdown = document.querySelector('.cesium-baseLayerPicker-dropDown, .cesium-baseLayerPicker-dropDown-visible');
+      if (baseLayerPickerDropdown && !document.getElementById('tileset-warning-message')) {
+        const msg = document.createElement('div');
+        msg.id = 'tileset-warning-message';
+        msg.style.cssText = 'background:#fff3cd;color:#856404;border:1px solid #ffeeba;border-radius:4px;font-size:14px;padding:10px 14px;margin-bottom:12px;';
+        msg.innerHTML = '<strong>Note:</strong> To apply filters, please turn off the 3D tileset.';
+        baseLayerPickerDropdown.insertBefore(msg, baseLayerPickerDropdown.firstChild);
+      }
+    }, 1200);
   };

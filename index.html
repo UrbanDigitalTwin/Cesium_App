@@ -17,14 +17,20 @@
       </div>
       <div id="sidebarContent">
         <div class="sidebar-section">
-          <h3>Live Traffic Data</h3>
+          <h3>Live Traffic</h3>
           <button id="sidebarTrafficBtn" class="sidebar-btn">Show Live Traffic</button>
+        </div>
+        <div class="sidebar-section">
+          <h3>Air Quality</h3>
           <button id="sidebarAqiBtn" class="sidebar-btn">Show Air Quality</button>
+          <ul id="aqiList" style="list-style:none; padding:0; margin:12px 0 0 0;"></ul>
+        </div>
+        <div class="sidebar-section">
+          <h3>Weather</h3>
           <button id="sidebarWeatherBtn" class="sidebar-btn">Show Weather</button>
           <div id="weatherDropdown" class="sidebar-dropdown" style="display:none;">
             <div id="weatherPanelSidebar">Loading weather...</div>
           </div>
-          <ul id="aqiList" style="list-style:none; padding:0; margin:12px 0 0 0;"></ul>
         </div>
         <div class="sidebar-section">
           <h3>Other Live Filters</h3>
