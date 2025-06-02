@@ -227,10 +227,17 @@ window.onload = function() {
     const infoPanel = document.getElementById('infoPanel');
     handler.setInputAction((click) => {
       const picked = viewer.scene.pick(click.position);
-      if (Cesium.defined(picked) && picked.id) {
+      console.log('Picked:', picked);
+      if (
+        Cesium.defined(picked) &&
+        picked.id &&
+        picked.id.properties &&
+        Cesium.defined(picked.id.properties.index)
+      ) {
         const index = picked.id.properties.index.getValue();
+        console.log('Picked index:', index);
         const data = csvData[index];
-  
+        console.log('Picked data:', data);
         if (data) {
           infoPanel.innerHTML = `
             <button id="closeInfoPanel" class="close-btn">&times;</button>

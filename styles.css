@@ -89,6 +89,7 @@ html, body {
     max-width: 1400px;
     display: none;
     overflow: visible;
+    z-index: 99999;
   }
   #infoPanel img {
     max-width: 100%;
