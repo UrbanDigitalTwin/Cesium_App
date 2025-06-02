@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cesium JS App</title>
+  <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/cesium/Build/Cesium/Widgets/widgets.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="appFlexContainer" class="maximized">
+    <div id="sidebar">
+      <div id="sidebarHeader">
+        Live Observation
+        <button id="sidebarCloseBtn" title="Close">&times;</button>
+      </div>
+      <div id="sidebarContent">
+        <div class="sidebar-section">
+          <h3>Live Traffic Data</h3>
+          <button id="sidebarTrafficBtn" class="sidebar-btn">Show Live Traffic</button>
+          <button id="sidebarAqiBtn" class="sidebar-btn">Show Air Quality</button>
+          <button id="sidebarWeatherBtn" class="sidebar-btn">Show Weather</button>
+          <div id="weatherDropdown" class="sidebar-dropdown" style="display:none;">
+            <div id="weatherPanelSidebar">Loading weather...</div>
+          </div>
+          <ul id="aqiList" style="list-style:none; padding:0; margin:12px 0 0 0;"></ul>
+        </div>
+        <div class="sidebar-section">
+          <h3>Other Live Filters</h3>
+          <button class="sidebar-btn" disabled>Coming Soon...</button>
+        </div>
+        <div class="sidebar-section">
+          <h3>3D Visualization</h3>
+          <button id="sidebarTilesetBtn" class="sidebar-btn">3D Tileset</button>
+        </div>
+      </div>
+    </div>
+    <div id="cesiumMapWrapper">
+      <div id="cesiumContainer"></div>
+      <button id="maximizeMapBtn" title="Maximize/Restore Map">&#x26F6;</button>
+      <div id="infoPanel"></div>
+      <div id="logoPanel">
+        <img src="ucf -1.png" alt="UCF Logo" class="logo-img">
+        <img src="UDT_Logo-V01.png" alt="UDT Logo" class="logo-img">
+      </div>
+    </div>
+  </div>
+  <button id="hamburgerBtn" title="Open Menu">
+    <span class="hamburger-bar"></span>
+    <span class="hamburger-bar"></span>
+    <span class="hamburger-bar"></span>
+  </button>
+  <button id="sidebarRestoreBtn" title="Restore Menu">&#9776;</button>
+
+  <script src="https://unpkg.com/cesium/Build/Cesium/Cesium.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

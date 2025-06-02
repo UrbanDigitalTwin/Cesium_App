@@ -1,0 +1,374 @@
+html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  #appFlexContainer {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+    transition: background 0.2s;
+  }
+  #sidebar {
+    width: 340px;
+    min-width: 260px;
+    max-width: 400px;
+    height: 100%;
+    background: #f7fafd;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.12);
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    position: relative;
+  }
+  #sidebar.open {
+    transform: translateX(0);
+  }
+  #cesiumMapWrapper {
+    flex: 1 1 0%;
+    height: 100%;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.35s cubic-bezier(.4,0,.2,1);
+    min-width: 0;
+  }
+  #appFlexContainer.maximized #sidebar {
+    display: none !important;
+  }
+  #appFlexContainer.maximized #cesiumMapWrapper {
+    width: 100vw !important;
+    flex: 1 1 100%;
+  }
+  #cesiumContainer {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 0%;
+    position: relative;
+    z-index: 1;
+  }
+  #maximizeMapBtn {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    z-index: 500;
+    background: #fff;
+    color: #1976d2;
+    border: 2px solid #1976d2;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transition: background 0.2s, color 0.2s;
+  }
+  #maximizeMapBtn:hover {
+    background: #1976d2;
+    color: #fff;
+  }
+  #infoPanel {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    padding: 18px;
+    border-radius: 5px;
+    max-width: 1400px;
+    display: none;
+    overflow: visible;
+  }
+  #infoPanel img {
+    max-width: 100%;
+    height: auto;
+    margin-top: 10px;
+  }
+  #logoPanel {
+    position: absolute;
+    left: 180px;
+    bottom: 60px;
+    display: flex;
+    align-items: center;
+    z-index: 10;
+  }
+  .logo-img {
+    height: 48px;
+    margin-right: 16px;
+  }
+  .logo-img:last-child {
+    margin-right: 0;
+  }
+  .close-btn {
+    position: absolute;
+    top: 4px;
+    right: 12px;
+    background: #fff;
+    border: 2px solid #e53935;
+    color: #e53935;
+    font-size: 22px;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    z-index: 2;
+    transition: background 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .close-btn:hover {
+    background: #e53935;
+    color: #fff;
+  }
+  #weatherPanel {
+    position: absolute;
+    top: 80px;
+    right: 20px;
+    background: rgba(230, 226, 226, 0.277);
+    padding: 12px 18px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    z-index: 1;
+    min-width: 180px;
+    font-family: sans-serif;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: none;
+  }
+  #weatherPanel * {
+    pointer-events: none !important;
+  }
+  .cesium-baseLayerPicker-dropDown,
+  .cesium-baseLayerPicker-dropDown-visible {
+    z-index: 9999 !important;
+  }
+  #weatherPanel img {
+    width: 48px;
+    height: 48px;
+  }
+  #trafficBtn {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    z-index: 200;
+    background: #fff;
+    color: #333;
+    border: 2px solid #1976d2;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, color 0.2s;
+  }
+  #trafficBtn.active {
+    background: #1976d2;
+    color: #fff;
+  }
+  #toggle3dBtn {
+    position: absolute;
+    top: 70px;
+    left: 24px;
+    z-index: 200;
+    background: #fff;
+    color: #333;
+    border: 2px solid #388e3c;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, color 0.2s;
+    margin-top: 8px;
+  }
+  #toggle3dBtn.active {
+    background: #388e3c;
+    color: #fff;
+  }
+  /* Sidebar (drawer) styles */
+  #sidebarHeader {
+    background: #2196f3;
+    color: #fff;
+    font-size: 1.4em;
+    font-weight: bold;
+    padding: 22px 24px 18px 24px;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #sidebarCloseBtn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.6em;
+    cursor: pointer;
+    margin-left: 10px;
+    transition: color 0.2s;
+  }
+  #sidebarCloseBtn:hover {
+    color: #ff5252;
+  }
+  #sidebarContent {
+    flex: 1;
+    padding: 18px 24px;
+    overflow-y: auto;
+  }
+  .sidebar-section {
+    margin-bottom: 28px;
+  }
+  .sidebar-section h3 {
+    margin: 0 0 10px 0;
+    font-size: 1.1em;
+    color: #1976d2;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .sidebar-btn {
+    display: block;
+    width: 100%;
+    background: #fff;
+    color: #1976d2;
+    border: 2px solid #1976d2;
+    border-radius: 6px;
+    padding: 10px 0;
+    font-size: 1em;
+    font-weight: bold;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  .sidebar-btn.active, .sidebar-btn:hover {
+    background: #1976d2;
+    color: #fff;
+  }
+  /* Hamburger menu */
+  #hamburgerBtn {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    z-index: 400;
+    width: 44px;
+    height: 44px;
+    background: #fff;
+    border: 2px solid #1976d2;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: background 0.2s, border 0.2s;
+  }
+  #hamburgerBtn:hover {
+    background: #1976d2;
+    border-color: #1976d2;
+  }
+  #hamburgerBtn .hamburger-bar {
+    display: block;
+    width: 24px;
+    height: 3px;
+    background: #1976d2;
+    border-radius: 2px;
+    margin: 4px 0;
+    transition: background 0.2s;
+  }
+  #hamburgerBtn:hover .hamburger-bar {
+    background: #fff;
+  }
+  /* Floating restore icon */
+  #sidebarRestoreBtn {
+    position: absolute;
+    left: 24px;
+    top: 32px;
+    z-index: 400;
+    width: 48px;
+    height: 48px;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    transition: background 0.2s;
+  }
+  #sidebarRestoreBtn:hover {
+    background: #1565c0;
+  }
+  #aqiList {
+    list-style: none;
+    padding: 0;
+    margin: 12px 0 0 0;
+    max-height: 400px;
+    overflow-y: auto;
+  }
+  .aqi-station {
+    margin-bottom: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .aqi-station-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .aqi-station-name {
+    font-weight: bold;
+    color: #1976d2;
+    font-size: 1.1em;
+  }
+  .aqi-station-state {
+    color: #666;
+    font-size: 0.9em;
+  }
+  .aqi-station-details {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    font-size: 0.95em;
+  }
+  .aqi-station-label {
+    color: #666;
+  }
+  .aqi-station-value {
+    font-weight: 500;
+  }
+  .aqi-category {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 500;
+  }
+  .aqi-category-good { background: #e8f5e9; color: #388e3c; }
+  .aqi-category-moderate { background: #fff8e1; color: #fbc02d; }
+  .aqi-category-unhealthy-sg { background: #fff3e0; color: #ff9800; }
+  .aqi-category-unhealthy { background: #ffebee; color: #e53935; }
+  .aqi-category-very-unhealthy { background: #f3e5f5; color: #8e24aa; }
+  .aqi-category-hazardous { background: #efebe9; color: #6d4c41; }
