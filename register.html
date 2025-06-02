@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Register - Cesium App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="auth-container">
+    <h2>Create Account</h2>
+    <form id="register-form" onsubmit="window.registerUser(event)">
+      <input type="email" id="reg-email" placeholder="Email" required />
+      <input type="password" id="reg-password" placeholder="Password" required />
+      <input type="password" id="reg-confirm" placeholder="Confirm Password" required />
+      <div id="reg-error" class="auth-error"></div>
+      <button type="submit">Register</button>
+    </form>
+    <p>Already have an account? <a href="login.html">Sign in</a></p>
+  </div>
+  <script type="module" src="auth.js"></script>
+</body>
+</html> 

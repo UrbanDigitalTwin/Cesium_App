@@ -372,3 +372,44 @@ html, body {
   .aqi-category-unhealthy { background: #ffebee; color: #e53935; }
   .aqi-category-very-unhealthy { background: #f3e5f5; color: #8e24aa; }
   .aqi-category-hazardous { background: #efebe9; color: #6d4c41; }
+  .auth-container {
+    max-width: 350px;
+    margin: 60px auto;
+    padding: 32px 24px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    text-align: center;
+  }
+  .auth-container h2 {
+    margin-bottom: 18px;
+    color: #1976d2;
+  }
+  .auth-container input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 14px;
+    border: 1px solid #bdbdbd;
+    border-radius: 6px;
+    font-size: 1em;
+  }
+  .auth-container button {
+    width: 100%;
+    padding: 10px;
+    background: #1976d2;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 10px;
+  }
+  .auth-container button:hover {
+    background: #1565c0;
+  }
+  .auth-error {
+    color: #e53935;
+    margin-bottom: 10px;
+    min-height: 18px;
+  }
