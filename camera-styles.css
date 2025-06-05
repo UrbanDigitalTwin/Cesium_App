@@ -73,4 +73,113 @@
 
 .camera-info-close:hover {
     color: #b71c1c;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 2000;
+  left: 0;
+  top: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: auto;
+  background: rgba(0,0,0,0.7);
+}
+.modal-content {
+  display: block;
+  margin: 60px auto;
+  max-width: 90vw;
+  max-height: 80vh;
+  border-radius: 8px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.3);
+}
+.modal-close {
+  position: absolute;
+  top: 24px;
+  right: 40px;
+  color: #fff;
+  font-size: 40px;
+  font-weight: bold;
+  cursor: pointer;
+  z-index: 2001;
+}
+.modal-close:hover {
+  color: #e53935;
+}
+
+.inline-image-popup {
+  position: relative;
+  margin-top: 18px;
+  background: #fff;
+  border: 1.5px solid #eee;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  padding: 10px 10px 6px 10px;
+  text-align: center;
+  z-index: 1200;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.inline-image-close {
+  position: absolute;
+  top: 2px;
+  right: 10px;
+  color: #e53935;
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+  background: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  border: 1px solid #e53935;
+  transition: background 0.2s, color 0.2s;
+}
+.inline-image-close:hover {
+  background: #e53935;
+  color: #fff;
+}
+
+.inline-video-popup {
+  position: relative;
+  margin-top: 18px;
+  background: #fff;
+  border: 1.5px solid #eee;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  padding: 10px 10px 6px 10px;
+  text-align: center;
+  z-index: 1200;
+  max-width: 340px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.inline-video-close {
+  position: absolute;
+  top: 2px;
+  right: 10px;
+  color: #e53935;
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+  background: #fff;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  border: 1px solid #e53935;
+  transition: background 0.2s, color 0.2s;
+}
+.inline-video-close:hover {
+  background: #e53935;
+  color: #fff;
 } 

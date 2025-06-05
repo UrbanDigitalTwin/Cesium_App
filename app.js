@@ -4,7 +4,7 @@ window.onload = function() {
   
     // 511NY Camera API Configuration
     const NY511_API_KEY = '7544fe319c7d4998b57fbd6ae739bf17';
-    const NY511_CAMERAS_URL = `http://localhost:3001/cameras`;
+    const NY511_CAMERAS_URL = 'response.json';
     let cameraEntities = [];
     let activeCameraInfoBox = null;
     let camerasVisible = false;
@@ -70,8 +70,8 @@ window.onload = function() {
                 <p><strong>ID:</strong> ${camera.id}</p>
                 <p><strong>Roadway:</strong> ${camera.roadway}</p>
                 <div class="camera-links">
-                    ${camera.imageUrl ? `<a href="${camera.imageUrl}" target="_blank" class="camera-link">View Image</a>` : ''}
-                    ${camera.videoUrl ? `<a href="${camera.videoUrl}" target="_blank" class="camera-link">Watch Video</a>` : ''}
+                    ${camera.imageUrl ? `<a href="#" class="camera-link" onclick="showImageBelowDialog('${camera.imageUrl.replace(/'/g, "\\'")}');return false;">View Image</a>` : ''}
+                    ${camera.videoUrl ? `<a href="#" class="camera-link" onclick="showVideoBelowDialog('${camera.videoUrl.replace(/'/g, "\\'")}');return false;">Watch Video</a>` : ''}
                 </div>
             </div>
         `;
@@ -671,4 +671,74 @@ window.onload = function() {
         baseLayerPickerDropdown.insertBefore(msg, baseLayerPickerDropdown.firstChild);
       }
     }, 1200);
+  
+    // Show image below the info box
+    window.showImageBelowDialog = function(url) {
+      // Remove any existing image popup
+      const oldPopup = document.getElementById('inlineImagePopup');
+      if (oldPopup) oldPopup.remove();
+
+      // Create new popup
+      const popup = document.createElement('div');
+      popup.id = 'inlineImagePopup';
+      popup.className = 'inline-image-popup';
+      popup.innerHTML = `
+        <span class="inline-image-close" onclick="this.parentElement.remove()">&times;</span>
+        <img src="${url}" alt="Camera Image" style="max-width:320px;max-height:220px;display:block;margin:8px auto 0 auto;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);" />
+      `;
+
+      // Insert below the camera info box
+      const infoBox = document.getElementById('cameraInfoContainer');
+      if (infoBox) {
+        infoBox.appendChild(popup);
+      }
+    };
+  
+    // Show video below the info box
+    window.showVideoBelowDialog = function(url) {
+      // Remove any existing video popup
+      const oldPopup = document.getElementById('inlineVideoPopup');
+      if (oldPopup) oldPopup.remove();
+
+      // Create new popup
+      const popup = document.createElement('div');
+      popup.id = 'inlineVideoPopup';
+      popup.className = 'inline-video-popup';
+      popup.innerHTML = `
+        <span class="inline-video-close" onclick="this.parentElement.remove()">&times;</span>
+        <video src="${url}" controls autoplay style="max-width:320px;max-height:220px;display:block;margin:8px auto 0 auto;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,0.15);background:#000;"></video>
+      `;
+
+      // Insert below the camera info box
+      const infoBox = document.getElementById('cameraInfoContainer');
+      if (infoBox) {
+        infoBox.appendChild(popup);
+      }
+    };
+  
+    function setupModalClose() {
+      const modal = document.getElementById('imageModal');
+      const closeBtn = document.getElementById('modalCloseBtn');
+      if (closeBtn) {
+        closeBtn.onclick = function(e) {
+          e.stopPropagation();
+          modal.style.display = 'none';
+          document.getElementById('modalImg').src = '';
+        };
+      }
+      if (modal) {
+        modal.onclick = function(event) {
+          if (event.target === modal) {
+            modal.style.display = 'none';
+            document.getElementById('modalImg').src = '';
+          }
+        };
+      }
+    }
+  
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupModalClose);
+    } else {
+      setupModalClose();
+    }
   };
