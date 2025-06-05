@@ -2,6 +2,81 @@ window.onload = function() {
     // 1. Replace with your Cesium Ion access token
     Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZWNiODBjMi1mNDAxLTQ3MDQtOGIzNy05N2RkOWM0NDgzMzIiLCJpZCI6MjM0MzgyLCJpYXQiOjE3NDgyOTAxNjd9.nKR5kopwes1ofc6Vrny6iX0nBjGn8xQaMN8VyzRxg6o';
   
+    // 511NY Camera API Configuration
+    const NY511_API_KEY = '7544fe319c7d4998b57fbd6ae739bf17';
+    const NY511_CAMERAS_URL = `http://localhost:3001/cameras`;
+    let cameraEntities = [];
+    let activeCameraInfoBox = null;
+    let camerasVisible = false;
+  
+    // Function to fetch and process camera data
+    async function fetchAndProcessCameras() {
+        try {
+            console.log('Fetching camera data...');
+            const response = await fetch(NY511_CAMERAS_URL);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('API Error:', data.error);
+                return;
+            }
+            
+            // Clear existing camera entities
+            cameraEntities.forEach(entity => {
+                if (viewer.entities.contains(entity)) {
+                    viewer.entities.remove(entity);
+                }
+            });
+            cameraEntities = [];
+
+            // Process each camera
+            data.forEach(camera => {
+                if (!camera.Longitude || !camera.Latitude) return;
+                const entity = viewer.entities.add({
+                    position: Cesium.Cartesian3.fromDegrees(camera.Longitude, camera.Latitude),
+                    point: {
+                        pixelSize: 8,
+                        color: Cesium.Color.ORANGE,
+                        outlineColor: Cesium.Color.WHITE,
+                        outlineWidth: 1,
+                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                        show: camerasVisible
+                    },
+                    properties: {
+                        name: camera.Name || 'Unknown',
+                        direction: camera.DirectionOfTravel || 'Unknown',
+                        id: camera.ID || 'Unknown',
+                        roadway: camera.RoadwayName || 'Unknown',
+                        imageUrl: camera.Url || '',
+                        videoUrl: camera.VideoUrl || ''
+                    }
+                });
+                cameraEntities.push(entity);
+            });
+
+            console.log(`Added ${cameraEntities.length} camera entities`);
+        } catch (error) {
+            console.error('Error fetching camera data:', error);
+        }
+    }
+  
+    // Function to create camera info box HTML
+    function createCameraInfoBox(camera) {
+        return `
+            <div class="camera-info-box">
+                <button class="camera-info-close" onclick="document.getElementById('cameraInfoContainer').style.display='none'">&times;</button>
+                <h3>${camera.name}</h3>
+                <p><strong>Direction:</strong> ${camera.direction}</p>
+                <p><strong>ID:</strong> ${camera.id}</p>
+                <p><strong>Roadway:</strong> ${camera.roadway}</p>
+                <div class="camera-links">
+                    ${camera.imageUrl ? `<a href="${camera.imageUrl}" target="_blank" class="camera-link">View Image</a>` : ''}
+                    ${camera.videoUrl ? `<a href="${camera.videoUrl}" target="_blank" class="camera-link">Watch Video</a>` : ''}
+                </div>
+            </div>
+        `;
+    }
+  
     // 2. Initialize the Cesium Viewer with specific options
     const imageryProviderViewModels = [
       ...Cesium.createDefaultImageryProviderViewModels()
@@ -25,6 +100,88 @@ window.onload = function() {
         credit: '© Google'
       })
     });
+  
+    // Set initial camera view to Florida coordinates
+    viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(-81.20002771749041, 28.60263460486482, 2000),
+        orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0.0
+        }
+    });
+  
+    // Add camera info box container to the DOM
+    const cameraInfoContainer = document.createElement('div');
+    cameraInfoContainer.id = 'cameraInfoContainer';
+    cameraInfoContainer.style.display = 'none';
+    document.body.appendChild(cameraInfoContainer);
+  
+    // Add click handler for camera entities
+    const cameraHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    cameraHandler.setInputAction((click) => {
+      const picked = viewer.scene.pick(click.position);
+      
+      if (Cesium.defined(picked) && picked.id && cameraEntities.includes(picked.id)) {
+        const camera = picked.id.properties;
+        if (activeCameraInfoBox) {
+          activeCameraInfoBox.style.display = 'none';
+        }
+        
+        cameraInfoContainer.innerHTML = createCameraInfoBox({
+          name: camera.name.getValue(),
+          direction: camera.direction.getValue(),
+          id: camera.id.getValue(),
+          roadway: camera.roadway.getValue(),
+          imageUrl: camera.imageUrl.getValue(),
+          videoUrl: camera.videoUrl.getValue()
+        });
+        
+        cameraInfoContainer.style.display = 'block';
+        activeCameraInfoBox = cameraInfoContainer;
+      } else {
+        if (activeCameraInfoBox) {
+          activeCameraInfoBox.style.display = 'none';
+          activeCameraInfoBox = null;
+        }
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+  
+    // Function to toggle camera visibility
+    function toggleCameras() {
+        camerasVisible = !camerasVisible;
+        cameraEntities.forEach(entity => {
+            if (entity.point) {
+                entity.point.show = camerasVisible;
+            }
+        });
+        return camerasVisible;
+    }
+  
+    // Add camera toggle button to the sidebar
+    const sidebarCameraBtn = document.getElementById('nycGeojsonBtn');
+    if (sidebarCameraBtn) {
+        sidebarCameraBtn.onclick = function() {
+            const isVisible = toggleCameras();
+            this.classList.toggle('active');
+            this.textContent = isVisible ? 'Hide NY Street Cameras' : 'Show NY Street Cameras';
+            // Only fly to the specific NY point when cameras are shown
+            if (isVisible) {
+                viewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(-73.82557002406561, 40.715533967837096, 2000),
+                    orientation: {
+                        heading: Cesium.Math.toRadians(0),
+                        pitch: Cesium.Math.toRadians(-45),
+                        roll: 0.0
+                    },
+                    duration: 2
+                });
+            }
+        };
+    }
+  
+    // Fetch camera data after viewer initialization
+    fetchAndProcessCameras();
   
     let csvData = [];
     let tileset = null;
