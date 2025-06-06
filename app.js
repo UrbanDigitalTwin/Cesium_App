@@ -207,7 +207,8 @@ window.onload = function() {
             lon: parseFloat(values[3]),
             alt: parseFloat(values[4]),
             image: values[9],
-            class: values[10] || 'unknown'
+            class: values[10] || 'unknown',
+            UCF: values[11] === 'true' // expects 'true' in the UCF column
           };
         });
   
@@ -226,7 +227,7 @@ window.onload = function() {
                           classType.trim().toUpperCase() === 'UNPAVED' ? Cesium.Color.RED :
                           Cesium.Color.YELLOW;
   
-            viewer.entities.add({
+            const entity = viewer.entities.add({
               position: Cesium.Cartesian3.fromDegrees(lon, lat, alt),
               point: {
                 pixelSize: 4,
@@ -236,17 +237,21 @@ window.onload = function() {
               },
               properties: {
                 index: i - 1
-              }
+              },
+              show: false
             });
+            if (!window.mainPathPoints) window.mainPathPoints = [];
+            window.mainPathPoints.push(entity);
           }
         }
   
-        viewer.entities.add({
+        mainPathEntity = viewer.entities.add({
           polyline: {
             positions: positions,
             width: 3,
             material: Cesium.Color.RED
-          }
+          },
+          show: false
         });
   
         viewer.camera.setView({
@@ -444,7 +449,7 @@ window.onload = function() {
         }
         const apiKey = 'F28CB47B-1174-4881-8A62-E7ECDAC9B6E3';
         const url = `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${zipCode}&distance=25&API_KEY=${apiKey}`;
-        const proxyUrl = `http://localhost:3001/airnow?url=${encodeURIComponent(url)}`;
+        const proxyUrl = `http://localhost:3002/airnow?url=${encodeURIComponent(url)}`;
         try {
           const response = await fetch(proxyUrl);
           const data = await response.json();
@@ -740,5 +745,149 @@ window.onload = function() {
       document.addEventListener('DOMContentLoaded', setupModalClose);
     } else {
       setupModalClose();
+    }
+  
+    // Add Camera Interoperability (Path Toggle) button logic
+    let mainPathEntity = null;
+    const pathToggleBtn = document.getElementById('ucfInteropBtn');
+    if (pathToggleBtn) {
+      pathToggleBtn.onclick = function() {
+        if (mainPathEntity && window.mainPathPoints) {
+          const isVisible = mainPathEntity.show;
+          mainPathEntity.show = !isVisible;
+          window.mainPathPoints.forEach(pt => pt.show = !isVisible);
+          this.classList.toggle('active', !isVisible);
+          // Always show 'Camera Interoperability' as button text
+          this.textContent = 'Camera Interoperability';
+        }
+      };
+    }
+  
+    // Sidebar dropdown logic
+    const dropdownHeaders = document.querySelectorAll('.dropdown-header');
+    dropdownHeaders.forEach(header => {
+      header.addEventListener('click', function() {
+        const parent = this.parentElement;
+        const isOpen = parent.classList.contains('open');
+        // Close all dropdowns
+        document.querySelectorAll('.sidebar-section.dropdown').forEach(sec => sec.classList.remove('open'));
+        // Open this one if it was not already open
+        if (!isOpen) parent.classList.add('open');
+      });
+    });
+  
+    let trafficViewLayer = null;
+    const trafficViewApiKey = '2186cbcdd16f4d6796708a4be6c969b8';
+    const trafficViewBtn = document.getElementById('trafficViewBtn');
+    if (trafficViewBtn) {
+      trafficViewBtn.onclick = function() {
+        // Remove TomTom traffic layer if present
+        if (trafficLayer) {
+          removeTrafficLayer();
+          sidebarTrafficBtn.classList.remove('active');
+          sidebarTrafficBtn.textContent = 'Show Live Traffic';
+          stopTrafficAnimation();
+        }
+        // Toggle Traffic View layer
+        if (trafficViewLayer) {
+          viewer.imageryLayers.remove(trafficViewLayer, false);
+          trafficViewLayer = null;
+          this.classList.remove('active');
+          this.textContent = 'Traffic View';
+        } else {
+          // Example: Using MapTiler Traffic tiles (replace with your provider if different)
+          trafficViewLayer = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+            url: `https://api.maptiler.com/tiles/traffic/{z}/{x}/{y}.png?key=${trafficViewApiKey}`,
+            credit: 'Traffic data © MapTiler',
+            maximumLevel: 20
+          }), viewer.imageryLayers.length);
+          this.classList.add('active');
+          this.textContent = 'Hide Traffic View';
+        }
+      };
+    }
+  
+    // --- FDOT Traffic Cameras Integration ---
+    let fdotCameraEntities = [];
+    let fdotCamerasVisible = false;
+    const fdotBtn = document.getElementById('fdotTrafficBtn');
+    if (fdotBtn) {
+      fdotBtn.onclick = async function() {
+        if (fdotCamerasVisible) {
+          // Hide and remove all FDOT camera entities
+          fdotCameraEntities.forEach(e => viewer.entities.remove(e));
+          fdotCameraEntities = [];
+          fdotCamerasVisible = false;
+          this.classList.remove('active');
+          this.textContent = 'FDOT Traffic Cameras';
+        } else {
+          // Fetch and show FDOT cameras
+          this.textContent = 'Loading...';
+          const url = 'http://localhost:3003/fdot-cameras';
+          try {
+            const response = await fetch(url);
+            const data = await response.json();
+            const devices = data.deviceData.devices;
+            window.fdotDevices = devices;
+            fdotCameraEntities = devices.filter(device => device['device-status'] === 'on').map(device => {
+              const lat = device.location.center.Point.pos.lat;
+              const lon = device.location.center.Point.pos.lon;
+              const imageUrl = device['cctv-info'].urls.find(u => u.type === 'image').url;
+              const desc = device.location.description;
+              return viewer.entities.add({
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
+                point: { pixelSize: 8, color: Cesium.Color.LIME, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 },
+                properties: { description: desc, imageUrl: imageUrl }
+              });
+            });
+            fdotCamerasVisible = true;
+            this.classList.add('active');
+            this.textContent = 'Hide FDOT Cameras';
+          } catch (e) {
+            this.textContent = 'FDOT Traffic Cameras';
+            alert('Failed to load FDOT camera data.');
+          }
+        }
+      };
+      // Add click handler for FDOT camera points
+      const fdotHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+      fdotHandler.setInputAction((click) => {
+        const picked = viewer.scene.pick(click.position);
+        if (Cesium.defined(picked) && picked.id && fdotCameraEntities.includes(picked.id)) {
+          const props = picked.id.properties;
+          // Extract additional info from the original device object
+          const device = window.fdotDevices && window.fdotDevices.find(d => d.location && d.location.description === props.description.getValue());
+          let road = '', county = '', status = '', lastUpdate = '', lat = '', lon = '', videoUrl = '';
+          if (device) {
+            road = device.pointLocation && device.pointLocation.onAddress && device.pointLocation.onAddress.road && device.pointLocation.onAddress.road.name ? device.pointLocation.onAddress.road.name : '';
+            county = device.pointLocation && device.pointLocation.onAddress && device.pointLocation.onAddress.countyFull ? device.pointLocation.onAddress.countyFull : '';
+            status = device['device-status'] || '';
+            lastUpdate = device['cctv-info'] && device['cctv-info'].lastUpdate ? device['cctv-info'].lastUpdate : '';
+            lat = device.location && device.location.center && device.location.center.Point && device.location.center.Point.pos.lat;
+            lon = device.location && device.location.center && device.location.center.Point && device.location.center.Point.pos.lon;
+            const v = device['cctv-info'] && device['cctv-info'].urls ? device['cctv-info'].urls.find(u => u.type === 'rtmp') : null;
+            videoUrl = v ? v.url : '';
+          }
+          infoPanel.innerHTML = `
+            <button id=\"closeInfoPanel\" class=\"close-btn\">&times;</button>
+            <div style=\"display: flex; align-items: flex-start;\">
+              <div style=\"flex: 1; min-width: 0;\">
+                <h3>FDOT Traffic Camera</h3>
+                <p><strong>Description:</strong> ${props.description.getValue()}</p>
+                <p><strong>Status:</strong> ${status}</p>
+                <p><strong>Last Update:</strong> ${lastUpdate}</p>
+                <p><strong>Coordinates:</strong> ${lat}, ${lon}</p>
+              </div>
+              <div style=\"margin-left: 32px; margin-top: 24px;\">
+                <img src=\"${props.imageUrl.getValue()}\" alt=\"Camera Image\" style=\"max-width:300px; max-height:200px; border-radius:4px;\">
+              </div>
+            </div>
+          `;
+          infoPanel.style.display = 'block';
+          document.getElementById('closeInfoPanel').onclick = () => {
+            infoPanel.style.display = 'none';
+          };
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
   };

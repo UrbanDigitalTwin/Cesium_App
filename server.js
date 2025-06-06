@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const app = express();
-const port = 3001;
+const port = 3000;
 
 app.use(cors());
 app.use(express.static('.'));
@@ -64,6 +64,16 @@ app.get('/cameras', (req, res) => {
     });
 });
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
+});
+
+server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${port} is already in use. Please close the other process or use a different port.`);
+        process.exit(1);
+    } else {
+        console.error('Server error:', err);
+        process.exit(1);
+    }
 }); 

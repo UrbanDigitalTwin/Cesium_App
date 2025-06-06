@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
 import { firebaseConfig } from './firebase-config.js';
 
@@ -31,6 +31,8 @@ window.registerUser = async function(e) {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    // Send email verification
+    await sendEmailVerification(user);
     // Write user to database
     await set(ref(db, 'users/' + user.uid), {
       email: user.email,
@@ -41,7 +43,8 @@ window.registerUser = async function(e) {
       uid: user.uid,
       timestamp: Date.now()
     });
-    window.location.href = "index.html";
+    // Redirect to confirmation page
+    window.location.href = "confirm-email.html";
   } catch (err) {
     errorDiv.textContent = err.message;
   }
@@ -66,6 +69,10 @@ window.loginUser = async function(e) {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    if (!user.emailVerified) {
+      errorDiv.textContent = "Please verify your email before logging in.";
+      return;
+    }
     // Log login event
     await push(ref(db, 'loginEvents'), {
       uid: user.uid,
@@ -96,5 +103,26 @@ window.setupLiveMetrics = function(usersCountId, loginsCountId) {
     document.getElementById(loginsCountId).textContent = logins ? Object.keys(logins).length : 0;
   });
 };
+
+// Register
+export async function registerUser(email, password) {
+  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  await sendEmailVerification(userCredential.user);
+  return userCredential;
+}
+
+// Login
+export async function loginUser(email, password) {
+  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  if (!userCredential.user.emailVerified) {
+    throw new Error('Please verify your email before logging in.');
+  }
+  return userCredential;
+}
+
+// Forgot password
+export async function resetPassword(email) {
+  await sendPasswordResetEmail(auth, email);
+}
 
 export { auth, onAuthStateChanged }; 

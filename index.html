@@ -18,33 +18,53 @@
         <button id="sidebarCloseBtn" title="Close">&times;</button>
       </div>
       <div id="sidebarContent">
-        <div class="sidebar-section">
-          <h3>Live Traffic</h3>
-          <button id="sidebarTrafficBtn" class="sidebar-btn">Show Live Traffic</button>
-        </div>
-        <div class="sidebar-section">
-          <h3>New York Street Cameras</h3>
-          <button id="nycGeojsonBtn" class="sidebar-btn">Show NY Street Cameras</button>
-        </div>
-        <div class="sidebar-section">
-          <h3>Air Quality</h3>
-          <button id="sidebarAqiBtn" class="sidebar-btn">Show Air Quality</button>
-          <ul id="aqiList" style="list-style:none; padding:0; margin:12px 0 0 0;"></ul>
-        </div>
-        <div class="sidebar-section">
-          <h3>Weather</h3>
-          <button id="sidebarWeatherBtn" class="sidebar-btn">Show Weather</button>
-          <div id="weatherDropdown" class="sidebar-dropdown" style="display:none;">
-            <div id="weatherPanelSidebar">Loading weather...</div>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">Live Traffic</div>
+          <div class="dropdown-content">
+            <button id="sidebarTrafficBtn" class="sidebar-btn">Show Live Traffic</button>
+            <button id="trafficViewBtn" class="sidebar-btn">Traffic View</button>
+            <button id="fdotTrafficBtn" class="sidebar-btn">FDOT Traffic Cameras</button>
           </div>
         </div>
-        <div class="sidebar-section">
-          <h3>Other Live Filters</h3>
-          <button class="sidebar-btn" disabled>Coming Soon...</button>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">New York Street Cameras</div>
+          <div class="dropdown-content">
+            <button id="nycGeojsonBtn" class="sidebar-btn">Show NY Street Cameras</button>
+          </div>
         </div>
-        <div class="sidebar-section">
-          <h3>3D Visualization</h3>
-          <button id="sidebarTilesetBtn" class="sidebar-btn">3D Tileset</button>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">Air Quality</div>
+          <div class="dropdown-content">
+            <button id="sidebarAqiBtn" class="sidebar-btn">Show Air Quality</button>
+            <ul id="aqiList" style="list-style:none; padding:0; margin:12px 0 0 0;"></ul>
+          </div>
+        </div>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">Weather</div>
+          <div class="dropdown-content">
+            <button id="sidebarWeatherBtn" class="sidebar-btn">Show Weather</button>
+            <div id="weatherDropdown" class="sidebar-dropdown" style="display:none;">
+              <div id="weatherPanelSidebar">Loading weather...</div>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">3D Visualization</div>
+          <div class="dropdown-content">
+            <button id="sidebarTilesetBtn" class="sidebar-btn">3D Tileset</button>
+          </div>
+        </div>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">UCF</div>
+          <div class="dropdown-content">
+            <button id="ucfInteropBtn" class="sidebar-btn">Camera Interoperability</button>
+          </div>
+        </div>
+        <div class="sidebar-section dropdown">
+          <div class="dropdown-header" tabindex="0">Other Live Filters</div>
+          <div class="dropdown-content">
+            <button class="sidebar-btn" disabled>Coming Soon...</button>
+          </div>
         </div>
       </div>
     </div>
