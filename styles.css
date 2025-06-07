@@ -378,7 +378,8 @@ html, body {
   .aqi-category-hazardous { background: #efebe9; color: #6d4c41; }
   .auth-container {
     max-width: 350px;
-    margin: 60px auto;
+
+    margin: 100px auto;
     padding: 32px 24px;
     background: #fff;
     border-radius: 10px;
@@ -423,7 +424,7 @@ html, body {
     background: #F4F7F9;
   }
   #slideshow-section {
-    width: 60vw;
+    width: 80vw;
     min-width: 60vw;
     display: flex;
     align-items: center;
@@ -436,7 +437,8 @@ html, body {
   }
   .slideshow-wrapper {
     width: 100%;
-    max-width: 900px;
+    max-width: 1000px;
+    margin-bottom: 100px;
     height: 520px;
     position: relative;
     border-radius: 18px;
