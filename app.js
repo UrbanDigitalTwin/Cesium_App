@@ -103,7 +103,7 @@ window.onload = function() {
   
     // Set initial camera view to Florida coordinates
     viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(-81.20002771749041, 28.60263460486482, 2000),
+        destination: Cesium.Cartesian3.fromDegrees(-81.20002771749041, 28.60263460486482, 5000),
         orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-45),
