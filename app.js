@@ -103,7 +103,7 @@ window.onload = function() {
   
     // Set initial camera view to Florida coordinates
     viewer.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(-81.20002771749041, 28.60263460486482, 5000),
+        destination: Cesium.Cartesian3.fromDegrees(-81.20002771749041, 28.60263460486482, 100000),
         orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-45),
@@ -255,7 +255,7 @@ window.onload = function() {
         });
   
         viewer.camera.setView({
-          destination: Cesium.Cartesian3.fromDegrees(-81.1889236, 28.59092656991317, 100),
+          destination: Cesium.Cartesian3.fromDegrees(-81.2016141073140628, 28.5812889447392,  2000),
           orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-45),
