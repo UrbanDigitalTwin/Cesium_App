@@ -1,20 +1,34 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendEmailVerification, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
-import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
-import { firebaseConfig } from './firebase-config.js';
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+import {
+  getDatabase,
+  ref,
+  set,
+  push,
+  onValue,
+} from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
 // Registration
-window.registerUser = async function(e) {
+window.registerUser = async function (e) {
   e.preventDefault();
-  const email = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value;
-  const confirm = document.getElementById('reg-confirm').value;
-  const errorDiv = document.getElementById('reg-error');
-  errorDiv.textContent = '';
+  const email = document.getElementById("register-email").value.trim();
+  const password = document.getElementById("register-password").value;
+  const confirm = document.getElementById("register-confirm-password").value;
+  const errorDiv = document.getElementById("register-error");
+  errorDiv.textContent = "";
 
   if (!email || !password || !confirm) {
     errorDiv.textContent = "All fields are required.";
@@ -29,19 +43,23 @@ window.registerUser = async function(e) {
     return;
   }
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const user = userCredential.user;
     // Send email verification
     await sendEmailVerification(user);
     // Write user to database
-    await set(ref(db, 'users/' + user.uid), {
+    await set(ref(db, "users/" + user.uid), {
       email: user.email,
-      registrationTimestamp: Date.now()
+      registrationTimestamp: Date.now(),
     });
     // Log login event
-    await push(ref(db, 'loginEvents'), {
+    await push(ref(db, "loginEvents"), {
       uid: user.uid,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     // Redirect to confirmation page
     window.location.href = "confirm-email.html";
@@ -51,12 +69,12 @@ window.registerUser = async function(e) {
 };
 
 // Login
-window.loginUser = async function(e) {
+window.loginUser = async function (e) {
   e.preventDefault();
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errorDiv = document.getElementById('login-error');
-  errorDiv.textContent = '';
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const errorDiv = document.getElementById("login-error");
+  errorDiv.textContent = "";
 
   if (!email || !password) {
     errorDiv.textContent = "All fields are required.";
@@ -67,16 +85,20 @@ window.loginUser = async function(e) {
     return;
   }
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
     const user = userCredential.user;
     if (!user.emailVerified) {
       errorDiv.textContent = "Please verify your email before logging in.";
       return;
     }
     // Log login event
-    await push(ref(db, 'loginEvents'), {
+    await push(ref(db, "loginEvents"), {
       uid: user.uid,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
     window.location.href = "index.html";
   } catch (err) {
@@ -85,37 +107,49 @@ window.loginUser = async function(e) {
 };
 
 // Logout
-window.logoutUser = async function() {
+window.logoutUser = async function () {
   await signOut(auth);
   window.location.href = "login.html";
 };
 
 // Metrics (for index.html sidebar)
-window.setupLiveMetrics = function(usersCountId, loginsCountId) {
-  const usersRef = ref(db, 'users');
-  const loginsRef = ref(db, 'loginEvents');
+window.setupLiveMetrics = function (usersCountId, loginsCountId) {
+  const usersRef = ref(db, "users");
+  const loginsRef = ref(db, "loginEvents");
   onValue(usersRef, (snapshot) => {
     const users = snapshot.val();
-    document.getElementById(usersCountId).textContent = users ? Object.keys(users).length : 0;
+    document.getElementById(usersCountId).textContent = users
+      ? Object.keys(users).length
+      : 0;
   });
   onValue(loginsRef, (snapshot) => {
     const logins = snapshot.val();
-    document.getElementById(loginsCountId).textContent = logins ? Object.keys(logins).length : 0;
+    document.getElementById(loginsCountId).textContent = logins
+      ? Object.keys(logins).length
+      : 0;
   });
 };
 
 // Register
 export async function registerUser(email, password) {
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const userCredential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
   await sendEmailVerification(userCredential.user);
   return userCredential;
 }
 
 // Login
 export async function loginUser(email, password) {
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  const userCredential = await signInWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
   if (!userCredential.user.emailVerified) {
-    throw new Error('Please verify your email before logging in.');
+    throw new Error("Please verify your email before logging in.");
   }
   return userCredential;
 }
@@ -125,4 +159,4 @@ export async function resetPassword(email) {
   await sendPasswordResetEmail(auth, email);
 }
 
-export { auth, onAuthStateChanged }; 
+export { auth, onAuthStateChanged };
