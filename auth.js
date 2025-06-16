@@ -7,6 +7,7 @@ import {
   onAuthStateChanged,
   sendEmailVerification,
   sendPasswordResetEmail,
+  applyActionCode,
 } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 import {
   getDatabase,
@@ -49,8 +50,12 @@ window.registerUser = async function (e) {
       password
     );
     const user = userCredential.user;
-    // Send email verification
-    await sendEmailVerification(user);
+    // Send email verification with custom action URL
+    const actionCodeSettings = {
+      url: window.location.origin + '/login.html',
+      handleCodeInApp: true
+    };
+    await sendEmailVerification(user, actionCodeSettings);
     // Write user to database
     await set(ref(db, "users/" + user.uid), {
       email: user.email,
@@ -61,8 +66,11 @@ window.registerUser = async function (e) {
       uid: user.uid,
       timestamp: Date.now(),
     });
-    // Redirect to confirmation page
-    window.location.href = "confirm-email.html";
+    // Hide form and show confirmation message
+    document.getElementById("register-form").style.display = "none";
+    const messageDiv = document.getElementById("register-message");
+    messageDiv.textContent = "Registration successful! Please check your email to confirm.";
+    messageDiv.style.display = "block";
   } catch (err) {
     errorDiv.textContent = err.message;
   }
@@ -159,4 +167,47 @@ export async function resetPassword(email) {
   await sendPasswordResetEmail(auth, email);
 }
 
-export { auth, onAuthStateChanged };
+// Handle email verification
+window.handleEmailVerification = async function() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const oobCode = urlParams.get('oobCode');
+  
+  if (oobCode) {
+    try {
+      await applyActionCode(auth, oobCode);
+      // Show success message
+      const messageDiv = document.getElementById('register-message');
+      if (messageDiv) {
+        messageDiv.textContent = 'Email verified successfully! You can now log in.';
+        messageDiv.style.display = 'block';
+        messageDiv.style.color = 'green';
+      }
+      // Redirect to login page after 3 seconds
+      setTimeout(() => {
+        window.location.href = 'login.html';
+      }, 3000);
+    } catch (error) {
+      console.error('Error verifying email:', error);
+      const messageDiv = document.getElementById('register-message');
+      if (messageDiv) {
+        messageDiv.textContent = 'Error verifying email. Please try again.';
+        messageDiv.style.display = 'block';
+        messageDiv.style.color = 'red';
+      }
+    }
+  }
+};
+
+// Call the verification handler when the page loads
+window.addEventListener('load', window.handleEmailVerification);
+
+export {
+  auth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  applyActionCode,
+};

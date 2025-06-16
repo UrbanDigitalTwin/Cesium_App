@@ -1,6 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
+const fetch = require('node-fetch');
 const app = express();
 const port = 3000;
 
@@ -62,6 +64,35 @@ app.get('/cameras', (req, res) => {
         if (err) return res.status(500).json({ error: 'Failed to read camera data' });
         res.json(JSON.parse(data));
     });
+});
+
+// NY511 proxy endpoint
+app.get('/ny511-cameras', async (req, res) => {
+  const apiKey = process.env.NY511_API_KEY;
+  // Adjust the URL and params as needed for your NY511 API usage
+  const url = `https://511ny.org/api/endpoint?apiKey=${apiKey}`;
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch NY511 data.' });
+  }
+});
+
+// TomTom Traffic proxy endpoint
+app.get('/tomtom-traffic', async (req, res) => {
+  const apiKey = process.env.TOMTOM_API_KEY;
+  const { z, x, y, ts } = req.query;
+  if (!z || !x || !y || !ts) return res.status(400).send('Missing tile parameters');
+  const url = `https://api.tomtom.com/traffic/map/4/tile/flow/absolute/${z}/${x}/${y}.png?key=${apiKey}&ts=${ts}`;
+  try {
+    const response = await fetch(url);
+    res.set('Content-Type', 'image/png');
+    response.body.pipe(res);
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to fetch TomTom traffic data.' });
+  }
 });
 
 const server = app.listen(port, () => {

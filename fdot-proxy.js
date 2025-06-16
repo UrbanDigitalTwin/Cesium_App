@@ -1,9 +1,12 @@
+require('dotenv').config();
 const express = require('express');
 const fetch = require('node-fetch');
 const app = express();
+const PORT = 3003;
 
 app.get('/fdot-cameras', async (req, res) => {
-  const apiUrl = 'https://api.trafficview.org/device/?api-key=2186cbcdd16f4d6796708a4be6c969b8&system=fdot&type=device_cctv&format=rf-json';
+  const apiKey = process.env.TRAFFIC_VIEW_API_KEY;
+  const apiUrl = `https://api.trafficview.org/device/?api-key=${apiKey}&system=fdot&type=device_cctv&format=rf-json`;
   try {
     const response = await fetch(apiUrl);
     const data = await response.json();
@@ -14,5 +17,4 @@ app.get('/fdot-cameras', async (req, res) => {
   }
 });
 
-const PORT = 3003;
 app.listen(PORT, () => console.log(`FDOT proxy running on http://localhost:${PORT}`)); 

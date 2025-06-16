@@ -4,7 +4,7 @@ window.onload = function () {
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZWNiODBjMi1mNDAxLTQ3MDQtOGIzNy05N2RkOWM0NDgzMzIiLCJpZCI6MjM0MzgyLCJpYXQiOjE3NDgyOTAxNjd9.nKR5kopwes1ofc6Vrny6iX0nBjGn8xQaMN8VyzRxg6o";
 
   // 511NY Camera API Configuration
-  const NY511_API_KEY = "7544fe319c7d4998b57fbd6ae739bf17";
+  //const NY511_API_KEY = "7544fe319c7d4998b57fbd6ae739bf17";
   const NY511_CAMERAS_URL = "response.json";
   let cameraEntities = [];
   let activeCameraInfoBox = null;
@@ -14,7 +14,8 @@ window.onload = function () {
   async function fetchAndProcessCameras() {
     try {
       console.log("Fetching camera data...");
-      const response = await fetch(NY511_CAMERAS_URL);
+      // Revert to using the local JSON file
+      const response = await fetch("response.json");
       const data = await response.json();
 
       if (data.error) {
@@ -316,7 +317,7 @@ window.onload = function () {
   function addTrafficLayer() {
     const ts = Date.now();
     const provider = new Cesium.UrlTemplateImageryProvider({
-      url: `https://api.tomtom.com/traffic/map/4/tile/flow/absolute/{z}/{x}/{y}.png?key=${tomtomApiKey}&ts=${ts}`,
+      url: `/tomtom-traffic?z={z}&x={x}&y={y}&ts=${ts}`,
       credit: "Traffic data © TomTom",
       maximumLevel: 20,
     });
@@ -487,7 +488,6 @@ window.onload = function () {
       aqiList.style.display = "block";
       sidebarAqiBtn.classList.add("active");
       sidebarAqiBtn.textContent = "Hide Air Quality";
-      // Fetch and display AQI data
       sidebarAqiBtn.textContent = "Loading...";
       aqiList.innerHTML = "";
       const center = getCameraCenter(viewer);
@@ -498,73 +498,64 @@ window.onload = function () {
         sidebarAqiBtn.textContent = "Hide Air Quality";
         return;
       }
-      const apiKey = "F28CB47B-1174-4881-8A62-E7ECDAC9B6E3";
-      const url = `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${zipCode}&distance=25&API_KEY=${apiKey}`;
-      const proxyUrl = `http://localhost:3002/airnow?url=${encodeURIComponent(
-        url
-      )}`;
-      try {
-        const response = await fetch(proxyUrl);
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const stationsByArea = {};
-          data.forEach((station) => {
-            const key = `${station.ReportingArea}-${station.StateCode}`;
-            if (!stationsByArea[key] || station.AQI > stationsByArea[key].AQI) {
-              stationsByArea[key] = station;
-            }
-          });
-          const sortedStations = Object.values(stationsByArea).sort(
-            (a, b) => b.AQI - a.AQI
-          );
-          aqiList.innerHTML = sortedStations
-            .map((station) => {
-              const category = station.Category
-                ? station.Category.Name
-                : "Unknown";
-              const categoryClass = category.toLowerCase().replace(/\s+/g, "-");
-              return `
-                <li class="aqi-station">
-                  <div class="aqi-station-header">
-                    <div class="aqi-station-name">${
-                      station.ReportingArea || "Unknown Location"
-                    }</div>
-                    <div class="aqi-station-state">${
-                      station.StateCode || ""
-                    }</div>
-                  </div>
-                  <div class="aqi-station-details">
-                    <span class="aqi-station-label">Parameter:</span>
-                    <span class="aqi-station-value">${
-                      station.ParameterName || "N/A"
-                    }</span>
-                    <span class="aqi-station-label">AQI Value:</span>
-                    <span class="aqi-station-value">${
-                      station.AQI || "N/A"
-                    }</span>
-                    <span class="aqi-station-label">Category:</span>
-                    <span class="aqi-station-value">
-                      <span class="aqi-category aqi-category-${categoryClass}">${category}</span>
-                    </span>
-                    <span class="aqi-station-label">Last Updated:</span>
-                    <span class="aqi-station-value">${new Date(
-                      station.DateObserved + "T" + station.HourObserved + ":00"
-                    ).toLocaleString()}</span>
-                  </div>
-                </li>
-              `;
-            })
-            .join("");
-        } else {
-          aqiList.innerHTML =
-            '<li style="color:#e53935;">No AQI data found for this zip code.</li>';
-        }
-      } catch (e) {
-        console.error("AQI fetch error:", e);
+      // For local development, use the full URL with port
+      const response = await fetch(`http://localhost:3002/airnow?zip=${zipCode}`);
+      // For production (Render), use:
+      // const response = await fetch(`/airnow?zip=${zipCode}`);
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const stationsByArea = {};
+        data.forEach((station) => {
+          const key = `${station.ReportingArea}-${station.StateCode}`;
+          if (!stationsByArea[key] || station.AQI > stationsByArea[key].AQI) {
+            stationsByArea[key] = station;
+          }
+        });
+        const sortedStations = Object.values(stationsByArea).sort(
+          (a, b) => b.AQI - a.AQI
+        );
+        aqiList.innerHTML = sortedStations
+          .map((station) => {
+            const category = station.Category
+              ? station.Category.Name
+              : "Unknown";
+            const categoryClass = category.toLowerCase().replace(/\s+/g, "-");
+            return `
+              <li class="aqi-station">
+                <div class="aqi-station-header">
+                  <div class="aqi-station-name">${
+                    station.ReportingArea || "Unknown Location"
+                  }</div>
+                  <div class="aqi-station-state">${
+                    station.StateCode || ""
+                  }</div>
+                </div>
+                <div class="aqi-station-details">
+                  <span class="aqi-station-label">Parameter:</span>
+                  <span class="aqi-station-value">${
+                    station.ParameterName || "N/A"
+                  }</span>
+                  <span class="aqi-station-label">AQI Value:</span>
+                  <span class="aqi-station-value">${
+                    station.AQI || "N/A"
+                  }</span>
+                  <span class="aqi-station-label">Category:</span>
+                  <span class="aqi-station-value">
+                    <span class="aqi-category aqi-category-${categoryClass}">${category}</span>
+                  </span>
+                  <span class="aqi-station-label">Last Updated:</span>
+                  <span class="aqi-station-value">${new Date(
+                    station.DateObserved + "T" + station.HourObserved + ":00"
+                  ).toLocaleString()}</span>
+                </div>
+              </li>
+            `;
+          })
+          .join("");
+      } else {
         aqiList.innerHTML =
-          '<li style="color:#e53935;">Error fetching AQI data. Please try again.</li>';
+          '<li style="color:#e53935;">No AQI data found for this zip code.</li>';
       }
-      sidebarAqiBtn.textContent = "Hide Air Quality";
     } else {
       aqiList.style.display = "none";
       aqiList.innerHTML = "";
@@ -1044,41 +1035,37 @@ window.onload = function () {
         this.classList.remove("active");
         this.textContent = "FDOT Traffic Cameras";
       } else {
-        // Fetch and show FDOT cameras
         this.textContent = "Loading...";
-        const url = "http://localhost:3003/fdot-cameras";
-        try {
-          const response = await fetch(url);
-          const data = await response.json();
-          const devices = data.deviceData.devices;
-          window.fdotDevices = devices;
-          fdotCameraEntities = devices
-            .filter((device) => device["device-status"] === "on")
-            .map((device) => {
-              const lat = device.location.center.Point.pos.lat;
-              const lon = device.location.center.Point.pos.lon;
-              const imageUrl = device["cctv-info"].urls.find(
-                (u) => u.type === "image"
-              ).url;
-              const desc = device.location.description;
-              return viewer.entities.add({
-                position: Cesium.Cartesian3.fromDegrees(lon, lat),
-                point: {
-                  pixelSize: 8,
-                  color: Cesium.Color.LIME,
-                  outlineColor: Cesium.Color.BLACK,
-                  outlineWidth: 1,
-                },
-                properties: { description: desc, imageUrl: imageUrl },
-              });
+        // For local development, use the full URL with port
+        const response = await fetch("http://localhost:3003/fdot-cameras");
+        // For production (Render), use:
+        // const response = await fetch("/fdot-cameras");
+        const data = await response.json();
+        const devices = data.deviceData.devices;
+        window.fdotDevices = devices;
+        fdotCameraEntities = devices
+          .filter((device) => device["device-status"] === "on")
+          .map((device) => {
+            const lat = device.location.center.Point.pos.lat;
+            const lon = device.location.center.Point.pos.lon;
+            const imageUrl = device["cctv-info"].urls.find(
+              (u) => u.type === "image"
+            ).url;
+            const desc = device.location.description;
+            return viewer.entities.add({
+              position: Cesium.Cartesian3.fromDegrees(lon, lat),
+              point: {
+                pixelSize: 8,
+                color: Cesium.Color.LIME,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 1,
+              },
+              properties: { description: desc, imageUrl: imageUrl },
             });
-          fdotCamerasVisible = true;
-          this.classList.add("active");
-          this.textContent = "Hide FDOT Cameras";
-        } catch (e) {
-          this.textContent = "FDOT Traffic Cameras";
-          alert("Failed to load FDOT camera data.");
-        }
+          });
+        fdotCamerasVisible = true;
+        this.classList.add("active");
+        this.textContent = "Hide FDOT Cameras";
       }
     };
     // Add click handler for FDOT camera points
