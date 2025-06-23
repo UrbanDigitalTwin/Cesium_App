@@ -4,7 +4,9 @@
   "description": "Cesium application with 511NY camera integration",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server/server.js",
+    "airnow": "node proxies/airnow-proxy.js",
+    "fdot": "node proxies/fdot-proxy.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
