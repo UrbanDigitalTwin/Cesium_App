@@ -139,7 +139,7 @@ app.get("/tomtom-traffic", async (req, res) => {
   const url = `https://api.tomtom.com/traffic/map/4/tile/flow/absolute/${z}/${x}/${y}.png?key=${apiKey}&ts=${
     ts || Date.now()
   }`;
-  console.log(`Fetching traffic tile: z=${z}, x=${x}, y=${y}`);
+  // console.log(`Fetching traffic tile: z=${z}, x=${x}, y=${y}`);
 
   try {
     const response = await fetch(url);
@@ -158,6 +158,61 @@ app.get("/tomtom-traffic", async (req, res) => {
   } catch (e) {
     console.error("Failed to fetch TomTom traffic data:", e);
     res.status(500).json({ error: "Failed to fetch TomTom traffic data." });
+  }
+});
+
+// AirNow proxy endpoint (integrated from airnow-proxy.js)
+app.get("/airnow", async (req, res) => {
+  const zip = req.query.zip;
+  if (!zip) return res.status(400).send("Missing zip param");
+  const apiKey = process.env.AIRNOW_API_KEY;
+  console.log(
+    "Using AirNow API key:",
+    apiKey ? "API key exists" : "No API key"
+  );
+
+  const url = `https://www.airnowapi.org/aq/observation/zipCode/current/?format=application/json&zipCode=${zip}&distance=25&API_KEY=${apiKey}`;
+  try {
+    const response = await fetch(url);
+    const data = await response.text();
+    res.set("Access-Control-Allow-Origin", "*");
+    res.type("json").send(data);
+  } catch (e) {
+    console.error("AirNow API error:", e.message);
+    res.status(500).send("AirNow proxy error");
+  }
+});
+
+// FDOT proxy endpoint (integrated from fdot-proxy.js)
+app.get("/fdot-cameras", async (req, res) => {
+  const apiKey = process.env.TRAFFIC_VIEW_API_KEY;
+  console.log(
+    "Using FDOT Traffic View API key:",
+    apiKey ? "API key exists" : "No API key"
+  );
+
+  const apiUrl = `https://api.trafficview.org/device/?api-key=${apiKey}&system=fdot&type=device_cctv&format=rf-json`;
+  try {
+    const response = await fetch(apiUrl);
+    if (!response.ok) {
+      console.error("FDOT API error:", response.status, response.statusText);
+      res.set("Access-Control-Allow-Origin", "*");
+      return res.status(response.status).json({
+        error: `FDOT API error: ${response.status} ${response.statusText}`,
+      });
+    }
+
+    const data = await response.json();
+    console.log("Successfully retrieved FDOT camera data");
+    res.set("Access-Control-Allow-Origin", "*");
+    res.json(data);
+  } catch (e) {
+    console.error("FDOT API error:", e.message);
+    // Ensure CORS headers are sent even on error
+    res.set("Access-Control-Allow-Origin", "*");
+    res
+      .status(500)
+      .json({ error: "Failed to fetch FDOT camera data: " + e.message });
   }
 });
 

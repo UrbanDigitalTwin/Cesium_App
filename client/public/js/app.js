@@ -511,10 +511,8 @@ window.onload = function () {
         sidebarAqiBtn.textContent = "Hide Air Quality";
         return;
       }
-      // For local development, use the full URL with port
-      const response = await fetch(`http://localhost:3002/airnow?zip=${zipCode}`);
-      // For production (Render), use:
-      // const response = await fetch(`/airnow?zip=${zipCode}`);
+      // Use relative path for the consolidated endpoint
+      const response = await fetch(`/airnow?zip=${zipCode}`);
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         const stationsByArea = {};
@@ -1054,10 +1052,8 @@ window.onload = function () {
         this.textContent = "FDOT Traffic Cameras";
       } else {
         this.textContent = "Loading...";
-        // For local development, use the full URL with port
-        const response = await fetch("http://localhost:3003/fdot-cameras");
-        // For production (Render), use:
-        // const response = await fetch("/fdot-cameras");
+        // Use relative path for the consolidated endpoint
+        const response = await fetch("/fdot-cameras");
         const data = await response.json();
         const devices = data.deviceData.devices;
         window.fdotDevices = devices;
