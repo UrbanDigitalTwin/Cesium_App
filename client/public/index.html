@@ -135,19 +135,18 @@
       referrerpolicy="no-referrer"
     ></script>
     <script src="/js/app.js"></script>
-    <script type="module">
-      import { auth, onAuthStateChanged, signOut } from "/auth/auth.js";
-      onAuthStateChanged(auth, (user) => {
-        if (!user) window.location.href = "/login.html";
-        else {
-          document.getElementById("logoutBtn").onclick = () => {
-            signOut(auth).then(() => {
-              window.location.href = "/login.html";
-            }).catch((error) => {
-              console.error("Logout error:", error);
-            });
-          };
-        }
+    <script src="/auth/auth.js"></script>
+    <script>
+      // Check if user is authenticated using the new auth system
+      window.addEventListener('DOMContentLoaded', () => {
+        // Use the requireAuth function to check authentication
+        // If not authenticated, it will automatically redirect to login page
+        const user = window.requireAuth();
+        
+        // Set up logout button
+        document.getElementById("logoutBtn").onclick = () => {
+          window.logoutUser(); // Use our new logout function
+        };
       });
     </script>
   </body>
