@@ -18,6 +18,10 @@ node_modules
 /build
 /dist
 
+# Netlify
+.netlify
+netlify/functions/.netlify
+
 # Logs
 logs
 *.log

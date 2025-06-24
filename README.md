@@ -21,24 +21,58 @@ A web application for interactive 3D map visualization using CesiumJS, featuring
 
 ## Setup Instructions
 
-### 1. Clone or Download
-Place all files (`index.html`, `app.js`, `styles.css`, `camera-styles.css`, `server.js`, etc.) in a project directory.
+### Local Development
 
-### 2. Install Node.js (for server and AQI proxy)
-- Ensure [Node.js](https://nodejs.org/) is installed.
+#### 1. Clone or Download
+Place all files in a project directory.
 
-### 3. Add Camera Data
-- Place your `response.json` (array of NY camera objects) in the project root.
-
-### 4. Start the Server
+#### 2. Install Dependencies
 ```sh
 npm install
-node server.js
 ```
-- The server will run on `http://localhost:3001`.
 
-### 5. Open the App
-- Go to [http://localhost:3001](http://localhost:3001) in your browser.
+#### 3. Local Development Options
+
+**Option 1: Express Server (Legacy)**
+```sh
+npm run dev:express
+```
+- The Express server will run on `http://localhost:3000`
+
+**Option 2: Netlify Development (Recommended)**
+```sh
+npm run dev:netlify
+```
+- This uses Netlify CLI to simulate the production environment locally
+- Serverless functions will be available at `/.netlify/functions/`
+- Clean API routes (e.g., `/airnow`) will work via redirects
+
+### Netlify Deployment
+
+#### 1. Set Up Netlify
+- Create a Netlify account at [netlify.com](https://www.netlify.com/)
+- Install Netlify CLI globally (if not already installed): `npm install -g netlify-cli`
+- Login to Netlify: `netlify login`
+
+#### 2. Configure Environment Variables
+- Copy `.env.example` to `.env` for local development
+- Add your API keys to the `.env` file
+- For production, add these same variables in the Netlify dashboard:
+  - Go to your site → Site settings → Build & deploy → Environment variables
+  - Add each API key: `TRAFFIC_VIEW_API_KEY`, `AIRNOW_API_KEY`, `TOMTOM_API_KEY`, etc.
+
+#### 3. Deploy to Netlify
+```sh
+npm run deploy
+```
+
+Or deploy manually:
+```sh
+netlify deploy --prod
+```
+
+- Follow the prompts to select your Netlify site
+- The app will be deployed with serverless functions for all API endpoints
 
 ## Usage
 - **Open the sidebar** using the hamburger menu (☰) if hidden.

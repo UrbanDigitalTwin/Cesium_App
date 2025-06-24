@@ -1,0 +1,62 @@
+[build]
+  publish = "client"
+  functions = "netlify/functions"
+  command = "echo 'No build step required'"
+
+# Redirect API endpoints to Netlify Functions
+[[redirects]]
+  from = "/airnow"
+  to = "/.netlify/functions/airnow"
+  status = 200
+
+[[redirects]]
+  from = "/fdot-cameras"
+  to = "/.netlify/functions/fdot-cameras"
+  status = 200
+
+[[redirects]]
+  from = "/cameras"
+  to = "/.netlify/functions/cameras"
+  status = 200
+
+[[redirects]]
+  from = "/tomtom-traffic"
+  to = "/.netlify/functions/tomtom-traffic"
+  status = 200
+
+# For SPA routing - always return index.html for any unknown paths
+[[redirects]]
+  from = "/*"
+  to = "/src/index.html"
+  status = 200
+
+# For login.html specifically
+[[redirects]]
+  from = "/login"
+  to = "/public/login.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/login.html"
+  to = "/public/login.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/register"
+  to = "/public/register.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/register.html"
+  to = "/public/register.html"
+  status = 200
+  force = true
+
+# Serve static files
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = "*"
