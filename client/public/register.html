@@ -358,7 +358,7 @@
             </div>
           </div>
           <h2 style="text-align: center; color: #1976d2">Create Account</h2>
-          <form id="register-form" onsubmit="window.registerUser(event)">
+          <form id="register-form">
             <input
               type="email"
               id="register-email"
@@ -506,6 +506,76 @@
       }
       typeTagline();
     </script>
-    <script type="module" src="/auth/auth.js"></script>
+    <script>
+      // Handle form submission to register a new user
+      document.getElementById('register-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
+        const confirmPassword = document.getElementById('register-confirm-password').value;
+        const errorDiv = document.getElementById('register-error');
+        const messageDiv = document.getElementById('register-message');
+        
+        // Clear previous messages
+        errorDiv.textContent = '';
+        messageDiv.style.display = 'none';
+        
+        // Validate form fields
+        if (password !== confirmPassword) {
+          errorDiv.textContent = 'Passwords do not match';
+          return;
+        }
+        
+        if (password.length < 6) {
+          errorDiv.textContent = 'Password must be at least 6 characters';
+          return;
+        }
+        
+        try {
+          // Show loading state
+          const submitButton = this.querySelector('button[type="submit"]');
+          const originalButtonText = submitButton.textContent;
+          submitButton.textContent = 'Creating account...';
+          submitButton.disabled = true;
+          
+          // Call the Netlify register function
+          const response = await fetch('/.netlify/functions/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email, password })
+          });
+          
+          const data = await response.json();
+          
+          // Reset button state
+          submitButton.textContent = originalButtonText;
+          submitButton.disabled = false;
+          
+          if (!response.ok) {
+            // Handle registration error
+            errorDiv.textContent = data.error || 'Registration failed';
+            return;
+          }
+          
+          // Show success message
+          this.style.display = 'none';
+          messageDiv.style.display = 'block';
+          messageDiv.innerHTML = `
+            <h3>Registration Successful!</h3>
+            <p>A verification email has been sent to ${email}.</p>
+            <p>Please check your inbox and verify your email address before logging in.</p>
+            <p><a href="/login.html">Go to Login Page</a></p>
+          `;
+        } catch (error) {
+          console.error('Registration error:', error);
+          errorDiv.textContent = 'An error occurred during registration. Please try again.';
+          const submitButton = this.querySelector('button[type="submit"]');
+          submitButton.disabled = false;
+          submitButton.textContent = 'Register';
+        }
+      });
+    </script>
   </body>
 </html>
