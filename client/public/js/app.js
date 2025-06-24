@@ -14,8 +14,8 @@ window.onload = function () {
   async function fetchAndProcessCameras() {
     try {
       console.log("Fetching camera data...");
-      // Revert to using the local JSON file
-      const response = await fetch("/cameras");
+      // Fetch directly from the static JSON file
+      const response = await fetch("/data/response.json");
       const data = await response.json();
 
       if (data.error) {
