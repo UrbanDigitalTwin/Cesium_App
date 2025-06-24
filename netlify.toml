@@ -1,5 +1,5 @@
 [build]
-  publish = "client"
+  publish = "client/public"
   functions = "netlify/functions"
   command = "echo 'No build step required'"
 
@@ -24,34 +24,34 @@
   to = "/.netlify/functions/tomtom-traffic"
   status = 200
 
-# For SPA routing - always return index.html for any unknown paths
+# SPA routing - index.html for any unknown paths
 [[redirects]]
   from = "/*"
-  to = "/src/index.html"
+  to = "/index.html"
   status = 200
 
 # For login.html specifically
 [[redirects]]
   from = "/login"
-  to = "/public/login.html"
+  to = "/login.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/login.html"
-  to = "/public/login.html"
+  to = "/login.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/register"
-  to = "/public/register.html"
+  to = "/register.html"
   status = 200
   force = true
 
 [[redirects]]
   from = "/register.html"
-  to = "/public/register.html"
+  to = "/register.html"
   status = 200
   force = true
 

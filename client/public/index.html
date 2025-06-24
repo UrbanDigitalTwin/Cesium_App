@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cesium JS App</title>
+    <script src="https://cdn.jsdelivr.net/npm/knockout@3.5.1/build/output/knockout-latest.js"></script>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/cesium/Build/Cesium/Widgets/widgets.css"
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link href="/css/camera-styles.css" rel="stylesheet" />
+    <!-- Video.js CSS for HLS video support -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/video.js/8.22.0/video-js.min.css"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+  </head>
+  <body>
+    <div id="appFlexContainer" class="maximized">
+      <div id="sidebar">
+        <div id="sidebarHeader">
+          Live Observation
+          <button id="logoutBtn" title="Logout">Logout</button>
+          <button id="sidebarCloseBtn" title="Close">&times;</button>
+        </div>
+        <div id="sidebarContent">
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">Live Traffic</div>
+            <div class="dropdown-content">
+              <button id="sidebarTrafficBtn" class="sidebar-btn">
+                Show Live Traffic
+              </button>
+              <button id="trafficViewBtn" class="sidebar-btn">
+                Traffic View
+              </button>
+              <button id="fdotTrafficBtn" class="sidebar-btn">
+                FDOT Traffic Cameras
+              </button>
+            </div>
+          </div>
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">
+              New York Street Cameras
+            </div>
+            <div class="dropdown-content">
+              <button id="nycGeojsonBtn" class="sidebar-btn">
+                Show NY Street Cameras
+              </button>
+            </div>
+          </div>
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">Air Quality</div>
+            <div class="dropdown-content">
+              <button id="sidebarAqiBtn" class="sidebar-btn">
+                Show Air Quality
+              </button>
+              <ul
+                id="aqiList"
+                style="list-style: none; padding: 0; margin: 12px 0 0 0"
+              ></ul>
+            </div>
+          </div>
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">Weather</div>
+            <div class="dropdown-content">
+              <button id="sidebarWeatherBtn" class="sidebar-btn">
+                Show Weather
+              </button>
+              <div
+                id="weatherDropdown"
+                class="sidebar-dropdown"
+                style="display: none"
+              >
+                <div id="weatherPanelSidebar">Loading weather...</div>
+              </div>
+            </div>
+          </div>
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">3D Visualization</div>
+            <div class="dropdown-content">
+              <button id="sidebarTilesetBtn" class="sidebar-btn">
+                3D Tileset
+              </button>
+            </div>
+          </div>
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">UCF</div>
+            <div class="dropdown-content">
+              <button id="ucfInteropBtn" class="sidebar-btn">
+                Camera Interoperability
+              </button>
+            </div>
+          </div>
+          <div class="sidebar-section dropdown">
+            <div class="dropdown-header" tabindex="0">Other Live Filters</div>
+            <div class="dropdown-content">
+              <button class="sidebar-btn" disabled>Coming Soon...</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="cesiumMapWrapper">
+        <div id="cesiumContainer"></div>
+        <button id="maximizeMapBtn" title="Maximize/Restore Map">
+          &#x26F6;
+        </button>
+        <div id="infoPanel"></div>
+        <div id="logoPanel">
+          <img src="/images/ucf -1.png" alt="UCF Logo" class="logo-img" />
+          <img src="/images/UDT_Logo-V01.png" alt="UDT Logo" class="logo-img" />
+        </div>
+      </div>
+    </div>
+    <button id="hamburgerBtn" title="Open Menu">
+      <span class="hamburger-bar"></span>
+      <span class="hamburger-bar"></span>
+      <span class="hamburger-bar"></span>
+    </button>
+    <button id="sidebarRestoreBtn" title="Restore Menu">&#9776;</button>
+
+    <div id="imageModal" class="modal" style="display: none">
+      <span class="modal-close" id="modalCloseBtn">&times;</span>
+      <img class="modal-content" id="modalImg" src="" alt="Camera Image" />
+    </div>
+
+    <script src="https://unpkg.com/cesium/Build/Cesium/Cesium.js"></script>
+    <!-- Video.js library for HLS video support -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/video.js/8.22.0/video.min.js"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script src="/js/app.js"></script>
+    <script type="module">
+      import { auth, onAuthStateChanged, signOut } from "/auth/auth.js";
+      onAuthStateChanged(auth, (user) => {
+        if (!user) window.location.href = "/login.html";
+        else {
+          document.getElementById("logoutBtn").onclick = () => {
+            signOut(auth).then(() => {
+              window.location.href = "/login.html";
+            }).catch((error) => {
+              console.error("Logout error:", error);
+            });
+          };
+        }
+      });
+    </script>
+  </body>
+</html>
