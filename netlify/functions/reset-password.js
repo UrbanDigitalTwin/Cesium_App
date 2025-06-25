@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
-const firebase = require('firebase/app');
-require('firebase/auth');
+const { initializeApp } = require('firebase/app');
+const { getAuth, sendPasswordResetEmail } = require('firebase/auth');
 
 // Initialize Firebase Admin SDK if not already initialized
 let adminApp;
@@ -11,7 +11,7 @@ try {
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\n/g, '\n'),
     }),
     databaseURL: process.env.FIREBASE_DATABASE_URL
   });
@@ -28,12 +28,9 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID,
 };
 
-let firebaseApp;
-try {
-  firebaseApp = firebase.app();
-} catch (e) {
-  firebaseApp = firebase.initializeApp(firebaseConfig);
-}
+// Initialize Firebase app and auth
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
 
 exports.handler = async function(event, context) {
   // Set CORS headers
@@ -73,9 +70,8 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Send password reset email
-    const auth = firebase.auth();
-    await auth.sendPasswordResetEmail(email);
+    // Send password reset email using the modular API
+    await sendPasswordResetEmail(auth, email);
     
     return {
       statusCode: 200,

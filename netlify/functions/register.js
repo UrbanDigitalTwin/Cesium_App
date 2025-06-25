@@ -1,6 +1,6 @@
 const admin = require('firebase-admin');
-const firebase = require('firebase/app');
-require('firebase/auth');
+const { initializeApp } = require('firebase/app');
+const { getAuth, createUserWithEmailAndPassword, sendEmailVerification, updateProfile } = require('firebase/auth');
 
 // Initialize Firebase Admin SDK if not already initialized
 let adminApp;
@@ -11,7 +11,7 @@ try {
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\n/g, '\n'),
     }),
     databaseURL: process.env.FIREBASE_DATABASE_URL
   });
@@ -28,12 +28,9 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID,
 };
 
-let firebaseApp;
-try {
-  firebaseApp = firebase.app();
-} catch (e) {
-  firebaseApp = firebase.initializeApp(firebaseConfig);
-}
+// Initialize Firebase app and auth
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
 
 exports.handler = async function(event, context) {
   // Set CORS headers
@@ -73,29 +70,59 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Create user with Firebase Authentication
-    const auth = firebase.auth();
-    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-    const user = userCredential.user;
-    
-    // Send email verification
-    await user.sendEmailVerification();
-    
-    // Update user profile with name if provided
-    if (name) {
-      await user.updateProfile({
-        displayName: name
-      });
-    }
-    
-    // Update user count in the database
+    // Create user with Firebase Authentication using modular API
     try {
-      const db = admin.database();
-      const usersRef = db.ref('stats/users');
-      await usersRef.transaction(currentValue => (currentValue || 0) + 1);
-    } catch (dbError) {
-      console.error('Database error:', dbError);
-      // Continue even if the database update fails
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Send email verification
+      await sendEmailVerification(user);
+      
+      // Update user profile with name if provided
+      if (name) {
+        await updateProfile(user, {
+          displayName: name
+        });
+      }
+      
+      // Update user count in the database
+      try {
+        const db = admin.database();
+        const usersRef = db.ref('users');
+        await usersRef.child(user.uid).set({
+          email: user.email,
+          createdAt: new Date().toISOString()
+        });
+        
+        // Update total user count
+        const statsRef = db.ref('stats/users');
+        await statsRef.transaction(currentValue => (currentValue || 0) + 1);
+      } catch (dbError) {
+        console.error('Database error:', dbError);
+        // Continue even if the database update fails
+      }
+
+    } catch (error) {
+      console.error('Registration error:', error);
+      
+      // Map Firebase error codes to user-friendly messages
+      let errorMessage = 'Registration failed';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Email is already in use';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Invalid email format';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak';
+      }
+      
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: errorMessage,
+          code: error.code || 'unknown'
+        })
+      };
     }
 
     return {

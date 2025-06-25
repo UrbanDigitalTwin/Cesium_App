@@ -1,6 +1,6 @@
-const admin = require('firebase-admin');
-const firebase = require('firebase/app');
-require('firebase/auth');
+const admin = require("firebase-admin");
+const { initializeApp } = require("firebase/app");
+const { getAuth, confirmPasswordReset } = require("firebase/auth");
 
 // Initialize Firebase Admin SDK if not already initialized
 let adminApp;
@@ -11,9 +11,9 @@ try {
     credential: admin.credential.cert({
       projectId: process.env.FIREBASE_PROJECT_ID,
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\n/g, "\n"),
     }),
-    databaseURL: process.env.FIREBASE_DATABASE_URL
+    databaseURL: process.env.FIREBASE_DATABASE_URL,
   });
 }
 
@@ -28,36 +28,33 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID,
 };
 
-let firebaseApp;
-try {
-  firebaseApp = firebase.app();
-} catch (e) {
-  firebaseApp = firebase.initializeApp(firebaseConfig);
-}
+// Initialize Firebase app and auth
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
 
-exports.handler = async function(event, context) {
+exports.handler = async function (event, context) {
   // Set CORS headers
   const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 
   // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
+  if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
       headers,
-      body: ''
+      body: "",
     };
   }
 
   // Only accept POST requests
-  if (event.httpMethod !== 'POST') {
+  if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({ error: "Method not allowed" }),
     };
   }
 
@@ -69,46 +66,50 @@ exports.handler = async function(event, context) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Code and new password are required' })
+        body: JSON.stringify({ error: "Code and new password are required" }),
       };
     }
 
-    // Confirm password reset with Firebase Authentication
-    const auth = firebase.auth();
-    await auth.confirmPasswordReset(oobCode, newPassword);
-    
+    // Confirm password reset with Firebase Authentication using modular API
+    await confirmPasswordReset(auth, oobCode, newPassword);
+
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        message: 'Password has been reset successfully'
-      })
+        message: "Password has been reset successfully",
+      }),
     };
   } catch (error) {
-    console.error('Password reset confirmation error:', error);
-    
+    console.error("Password reset confirmation error:", error);
+
     // Map Firebase error codes to user-friendly messages
-    let errorMessage = 'Failed to reset password';
+    let errorMessage = "Failed to reset password";
     let statusCode = 400;
-    
-    if (error.code === 'auth/invalid-action-code' || error.code === 'auth/expired-action-code') {
-      errorMessage = 'The password reset link is invalid or has expired. Please request a new one.';
-    } else if (error.code === 'auth/weak-password') {
-      errorMessage = 'The password is too weak. Please choose a stronger password.';
-    } else if (error.code === 'auth/user-disabled') {
-      errorMessage = 'The user account has been disabled.';
+
+    if (
+      error.code === "auth/invalid-action-code" ||
+      error.code === "auth/expired-action-code"
+    ) {
+      errorMessage =
+        "The password reset link is invalid or has expired. Please request a new one.";
+    } else if (error.code === "auth/weak-password") {
+      errorMessage =
+        "The password is too weak. Please choose a stronger password.";
+    } else if (error.code === "auth/user-disabled") {
+      errorMessage = "The user account has been disabled.";
     } else {
       statusCode = 500;
-      errorMessage = 'An error occurred while resetting your password.';
+      errorMessage = "An error occurred while resetting your password.";
     }
-    
+
     return {
       statusCode,
       headers,
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         error: errorMessage,
-        code: error.code || 'unknown'
-      })
+        code: error.code || "unknown",
+      }),
     };
   }
 };
