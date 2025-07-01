@@ -380,7 +380,15 @@
             <div id="register-error" class="auth-error"></div>
             <button type="submit">Register</button>
           </form>
-          <div id="register-message" style="display: none; text-align: center; color: green; margin-top: 20px;"></div>
+          <div
+            id="register-message"
+            style="
+              display: none;
+              text-align: center;
+              color: green;
+              margin-top: 20px;
+            "
+          ></div>
           <p style="text-align: center">
             Already have an account? <a href="/login.html">Sign in</a>
           </p>
@@ -506,6 +514,6 @@
       }
       typeTagline();
     </script>
-    <script type="module" src="/auth/auth.js"></script>
+    <script type="module" src="/auth/supabase-auth.js"></script>
   </body>
 </html>

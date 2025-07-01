@@ -135,20 +135,6 @@
       referrerpolicy="no-referrer"
     ></script>
     <script src="/js/app.js"></script>
-    <script type="module">
-      import { auth, onAuthStateChanged, signOut } from "/auth/auth.js";
-      onAuthStateChanged(auth, (user) => {
-        if (!user) window.location.href = "/login.html";
-        else {
-          document.getElementById("logoutBtn").onclick = () => {
-            signOut(auth).then(() => {
-              window.location.href = "/login.html";
-            }).catch((error) => {
-              console.error("Logout error:", error);
-            });
-          };
-        }
-      });
-    </script>
+    <script type="module" src="/auth/supabase-auth.js"></script>
   </body>
 </html>
