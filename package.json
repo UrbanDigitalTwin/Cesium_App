@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "description": "Cesium application with 511NY camera integration",
   "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server/server.js"
+    "start": "node server/server.js",
+    "migrate": "node supabase/run-migration.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

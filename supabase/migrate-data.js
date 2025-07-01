@@ -165,3 +165,8 @@ export { migrateUsers, migrateLoginEvents, runMigration };
 if (import.meta.url === `file://${process.argv[1]}`) {
   runMigration().catch(console.error);
 }
+
+// Alternative execution check for ES modules
+if (process.argv[1] && process.argv[1].endsWith("migrate-data.js")) {
+  runMigration().catch(console.error);
+}

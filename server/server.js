@@ -1,10 +1,18 @@
 // Import required modules
-const path = require("path");
-require("dotenv").config({ path: path.resolve(__dirname, "../config/.env") });
-const express = require("express");
-const cors = require("cors");
-const fs = require("fs");
-const fetch = require("node-fetch");
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+import express from "express";
+import cors from "cors";
+import fs from "fs";
+import fetch from "node-fetch";
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables
+dotenv.config({ path: path.resolve(__dirname, "../config/.env") });
 
 // Create express app
 const app = express();
