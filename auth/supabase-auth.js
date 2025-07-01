@@ -245,4 +245,4 @@ window.checkAuthState = async function () {
 // Call the verification handler when the page loads
 window.addEventListener("load", window.handleEmailVerification);
 
-export { supabase, checkAuthState };
+export { supabase };
