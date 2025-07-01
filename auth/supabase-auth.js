@@ -242,6 +242,14 @@ window.checkAuthState = async function () {
   return user;
 };
 
+// Module export for checkAuthState
+export async function checkAuthState() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
+
 // Call the verification handler when the page loads
 window.addEventListener("load", window.handleEmailVerification);
 
