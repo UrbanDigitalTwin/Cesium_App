@@ -169,6 +169,14 @@ app.get("/tomtom-traffic", async (req, res) => {
   }
 });
 
+// Client configuration endpoint
+app.get("/config", (req, res) => {
+  // Only expose specific environment variables needed by the client
+  res.json({
+    cesiumIonToken: process.env.CESIUM_ION_TOKEN || ""
+  });
+});
+
 // AirNow proxy endpoint (integrated from airnow-proxy.js)
 app.get("/airnow", async (req, res) => {
   const zip = req.query.zip;

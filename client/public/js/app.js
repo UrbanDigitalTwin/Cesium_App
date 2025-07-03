@@ -1,11 +1,20 @@
-window.onload = function () {
-  // 1. Replace with your Cesium Ion access token
-  Cesium.Ion.defaultAccessToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZWNiODBjMi1mNDAxLTQ3MDQtOGIzNy05N2RkOWM0NDgzMzIiLCJpZCI6MjM0MzgyLCJpYXQiOjE3NDgyOTAxNjd9.nKR5kopwes1ofc6Vrny6iX0nBjGn8xQaMN8VyzRxg6o";
+// Initialize app when window loads
+window.onload = async function () {
+  // 1. Fetch configuration from server including Cesium Ion access token
+  try {
+    const response = await fetch("/config");
+    const config = await response.json();
+
+    if (config.cesiumIonToken) {
+      Cesium.Ion.defaultAccessToken = config.cesiumIonToken;
+    } else {
+      console.error("No Cesium Ion token provided in server config");
+    }
+  } catch (error) {
+    console.error("Failed to load configuration:", error);
+  }
 
   // 511NY Camera API Configuration
-  //const NY511_API_KEY = "7544fe319c7d4998b57fbd6ae739bf17";
-  const NY511_CAMERAS_URL = "/cameras";
   let cameraEntities = [];
   let activeCameraInfoBox = null;
   let camerasVisible = true; // Set to true by default
@@ -326,9 +335,9 @@ window.onload = function () {
         credit: "Traffic data © TomTom",
         maximumLevel: 20,
         // Add error handling for tile loading
-        errorCallback: function(e) {
+        errorCallback: function (e) {
           console.error("Error loading traffic tile:", e);
-        }
+        },
       });
       trafficLayer = viewer.imageryLayers.addImageryProvider(
         provider,
@@ -547,9 +556,7 @@ window.onload = function () {
                     station.ParameterName || "N/A"
                   }</span>
                   <span class="aqi-station-label">AQI Value:</span>
-                  <span class="aqi-station-value">${
-                    station.AQI || "N/A"
-                  }</span>
+                  <span class="aqi-station-value">${station.AQI || "N/A"}</span>
                   <span class="aqi-station-label">Category:</span>
                   <span class="aqi-station-value">
                     <span class="aqi-category aqi-category-${categoryClass}">${category}</span>
@@ -654,7 +661,7 @@ window.onload = function () {
       const panel = sidebarMode
         ? weatherPanelSidebar
         : document.getElementById("weatherPanel");
-      
+
       if (panel) {
         panel.innerHTML = `
           <ul style="padding:0;list-style:none;margin:0;">
