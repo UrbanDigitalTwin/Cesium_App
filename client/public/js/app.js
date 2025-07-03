@@ -19,6 +19,10 @@ window.onload = async function () {
   let activeCameraInfoBox = null;
   let camerasVisible = true; // Set to true by default
 
+  // Emergency Management Configuration
+  let emEventEntities = [];
+  let emEventsVisible = false;
+
   // Function to fetch and process camera data
   async function fetchAndProcessCameras() {
     try {
@@ -105,6 +109,57 @@ window.onload = async function () {
         `;
   }
 
+  // Function to create emergency event info box HTML
+  function createEmergencyEventInfoBox(event) {
+    // Format timestamp if available
+    let timeStr = "Unknown";
+    if (event.time && event._seconds) {
+      try {
+        const date = new Date(event.time._seconds * 1000);
+        timeStr = date.toLocaleString();
+      } catch (e) {
+        console.error("Error formatting event time:", e);
+      }
+    }
+
+    // Create image gallery HTML if images exist
+    let imagesHtml = "";
+    if (event.images && event.images.length > 0) {
+      imagesHtml = `
+        <div class="event-images">
+          <p><strong>Images:</strong></p>
+          <div class="image-gallery">
+            ${event.images
+              .map(
+                (img) =>
+                  `<img src="${img}" onclick="showImageBelowDialog('${img.replace(
+                    /'/g,
+                    "\\'"
+                  )}')"/>`
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="camera-info-box event-info-box">
+        <button class="camera-info-close" onclick="document.getElementById('cameraInfoContainer').style.display='none'">&times;</button>
+        <h3>${event.title || "Emergency Event"}</h3>
+        <div class="event-status ${event.active ? "active" : "inactive"}">
+          ${event.active ? "ACTIVE" : "INACTIVE"}
+        </div>
+        <p><strong>Type:</strong> ${event.eventType || "Unknown"}</p>
+        <p><strong>Time:</strong> ${timeStr}</p>
+        <p><strong>Description:</strong> ${
+          event.description || "No description available."
+        }</p>
+        ${imagesHtml}
+      </div>
+    `;
+  }
+
   // 2. Initialize the Cesium Viewer with specific options
   const imageryProviderViewModels = [
     ...Cesium.createDefaultImageryProviderViewModels(),
@@ -125,7 +180,7 @@ window.onload = async function () {
     terrainProvider: new Cesium.EllipsoidTerrainProvider(),
     imageryProvider: new Cesium.UrlTemplateImageryProvider({
       url: "https://tile.googleapis.com/v1/3dtiles/root.json?key=AIzaSyBxVOS_tR1Wmt9WQNxowI-8JhW1HvRzJ8Y",
-      credit: "© Google",
+      credit: " Google",
     }),
   });
 
@@ -149,32 +204,56 @@ window.onload = async function () {
   cameraInfoContainer.style.display = "none";
   document.body.appendChild(cameraInfoContainer);
 
-  // Add click handler for camera entities
+  // Add click handler for camera entities and emergency events
   const cameraHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
   cameraHandler.setInputAction((click) => {
     const picked = viewer.scene.pick(click.position);
 
-    if (
-      Cesium.defined(picked) &&
-      picked.id &&
-      cameraEntities.includes(picked.id)
-    ) {
-      const camera = picked.id.properties;
-      if (activeCameraInfoBox) {
-        activeCameraInfoBox.style.display = "none";
+    if (Cesium.defined(picked) && picked.id) {
+      // Check if it's a camera entity
+      if (cameraEntities.includes(picked.id)) {
+        const camera = picked.id.properties;
+        if (activeCameraInfoBox) {
+          activeCameraInfoBox.style.display = "none";
+        }
+
+        cameraInfoContainer.innerHTML = createCameraInfoBox({
+          name: camera.name.getValue(),
+          direction: camera.direction.getValue(),
+          id: camera.id.getValue(),
+          roadway: camera.roadway.getValue(),
+          imageUrl: camera.imageUrl.getValue(),
+          videoUrl: camera.videoUrl.getValue(),
+        });
+
+        cameraInfoContainer.style.display = "block";
+        activeCameraInfoBox = cameraInfoContainer;
       }
+      // Check if it's an emergency event entity
+      else if (picked.id.properties && picked.id.properties.isEmergencyEvent) {
+        const event = picked.id.properties;
+        if (activeCameraInfoBox) {
+          activeCameraInfoBox.style.display = "none";
+        }
 
-      cameraInfoContainer.innerHTML = createCameraInfoBox({
-        name: camera.name.getValue(),
-        direction: camera.direction.getValue(),
-        id: camera.id.getValue(),
-        roadway: camera.roadway.getValue(),
-        imageUrl: camera.imageUrl.getValue(),
-        videoUrl: camera.videoUrl.getValue(),
-      });
+        cameraInfoContainer.innerHTML = createEmergencyEventInfoBox({
+          id: event.id && event.id.getValue(),
+          title: event.title && event.title.getValue(),
+          description: event.description && event.description.getValue(),
+          eventType: event.eventType && event.eventType.getValue(),
+          time: event.time && event.time.getValue(),
+          active: event.active && event.active.getValue(),
+          images: event.images && event.images.getValue(),
+        });
 
-      cameraInfoContainer.style.display = "block";
-      activeCameraInfoBox = cameraInfoContainer;
+        cameraInfoContainer.style.display = "block";
+        activeCameraInfoBox = cameraInfoContainer;
+      } else {
+        if (activeCameraInfoBox) {
+          activeCameraInfoBox.style.display = "none";
+          activeCameraInfoBox = null;
+        }
+      }
     } else {
       if (activeCameraInfoBox) {
         activeCameraInfoBox.style.display = "none";
@@ -332,7 +411,7 @@ window.onload = async function () {
       const ts = Date.now();
       const provider = new Cesium.UrlTemplateImageryProvider({
         url: `/tomtom-traffic?z={z}&x={x}&y={y}&ts=${ts}`,
-        credit: "Traffic data © TomTom",
+        credit: "Traffic data TomTom",
         maximumLevel: 20,
         // Add error handling for tile loading
         errorCallback: function (e) {
@@ -371,11 +450,190 @@ window.onload = async function () {
     }
   }
 
+  // Emergency Management functionality
+  async function fetchEmergencyEvents() {
+    try {
+      // Show loading indicator
+      if (sidebarEmergencyManageBtn) {
+        sidebarEmergencyManageBtn.textContent = "Loading Events...";
+        sidebarEmergencyManageBtn.disabled = true;
+      }
+
+      const response = await fetch("/em-event-data");
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Error fetching emergency events:", errorData);
+        alert(
+          `Failed to load emergency events: ${
+            errorData.error || response.statusText
+          }`
+        );
+        return;
+      }
+
+      const eventData = await response.json();
+      console.log(`Received ${eventData.length} emergency events`);
+
+      // Clear existing event entities
+      clearEmergencyEvents();
+
+      // Create a point primitive collection for better performance with many points
+      const pointPrimitives = viewer.scene.primitives.add(
+        new Cesium.PointPrimitiveCollection()
+      );
+
+      // Process each event and add it to the map
+      eventData.forEach((event) => {
+        if (!event.latitude || !event.longitude) return;
+
+        // Create a color based on event type
+        let color;
+        switch (event.eventType?.toLowerCase()) {
+          case "hurricane":
+            color = Cesium.Color.BLUE;
+            break;
+          case "fire":
+            color = Cesium.Color.RED;
+            break;
+          case "flood":
+            color = Cesium.Color.CYAN;
+            break;
+          default:
+            color = Cesium.Color.YELLOW;
+        }
+
+        // Add point primitive for each event
+        const point = pointPrimitives.add({
+          position: Cesium.Cartesian3.fromDegrees(
+            event.longitude,
+            event.latitude
+          ),
+          pixelSize: 12,
+          color: color,
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 2,
+          scaleByDistance: new Cesium.NearFarScalar(1.5e2, 1.5, 8.0e6, 0.5),
+          translucencyByDistance: new Cesium.NearFarScalar(
+            1.5e5,
+            1.0,
+            1.5e7,
+            0.5
+          ),
+        });
+
+        // Add the entity with additional information for click events
+        const entity = viewer.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(
+            event.longitude,
+            event.latitude
+          ),
+          point: {
+            pixelSize: 1, // Small size for hit testing only
+            color: Cesium.Color.TRANSPARENT, // Transparent since we're using the point primitives for display
+          },
+          properties: {
+            id: event.id,
+            title: event.title,
+            description: event.description,
+            eventType: event.eventType,
+            time: event.time,
+            active: event.active,
+            images: event.images,
+            isEmergencyEvent: true, // Flag to identify as emergency event
+          },
+        });
+
+        emEventEntities.push(entity);
+      });
+
+      // Store the point primitive collection for toggling visibility
+      window.emPointPrimitives = pointPrimitives;
+      emEventsVisible = true;
+
+      // Update the button text
+      if (sidebarEmergencyManageBtn) {
+        sidebarEmergencyManageBtn.textContent = "Hide Emergency Events";
+        sidebarEmergencyManageBtn.disabled = false;
+        sidebarEmergencyManageBtn.classList.add("active");
+      }
+
+      // Fly to the first event if available
+      if (eventData.length > 0) {
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(
+            eventData[0].longitude,
+            eventData[0].latitude,
+            10000 // Height in meters
+          ),
+          orientation: {
+            heading: Cesium.Math.toRadians(0),
+            pitch: Cesium.Math.toRadians(-45),
+            roll: 0.0,
+          },
+          duration: 3,
+        });
+      }
+    } catch (error) {
+      console.error("Error in fetchEmergencyEvents:", error);
+      alert(`Error loading emergency events: ${error.message}`);
+
+      // Reset button state
+      if (sidebarEmergencyManageBtn) {
+        sidebarEmergencyManageBtn.textContent = "Emergency Management";
+        sidebarEmergencyManageBtn.disabled = false;
+        sidebarEmergencyManageBtn.classList.remove("active");
+      }
+    }
+  }
+
+  // Function to clear emergency event entities from the map
+  function clearEmergencyEvents() {
+    // Remove entities
+    emEventEntities.forEach((entity) => {
+      if (viewer.entities.contains(entity)) {
+        viewer.entities.remove(entity);
+      }
+    });
+    emEventEntities = [];
+
+    // Remove point primitives collection
+    if (window.emPointPrimitives) {
+      viewer.scene.primitives.remove(window.emPointPrimitives);
+      window.emPointPrimitives = null;
+    }
+  }
+
+  // Function to toggle emergency events visibility
+  function toggleEmergencyEvents() {
+    if (emEventsVisible) {
+      // Hide events
+      if (window.emPointPrimitives) {
+        window.emPointPrimitives.show = false;
+      }
+      emEventsVisible = false;
+      return false;
+    } else {
+      // Check if we already have events loaded
+      if (window.emPointPrimitives) {
+        window.emPointPrimitives.show = true;
+        emEventsVisible = true;
+        return true;
+      } else {
+        // Need to fetch events first
+        fetchEmergencyEvents();
+        return true;
+      }
+    }
+  }
+
   // --- Sidebar and Hamburger Logic ---
   const sidebar = document.getElementById("sidebar");
   const hamburgerBtn = document.getElementById("hamburgerBtn");
   const sidebarCloseBtn = document.getElementById("sidebarCloseBtn");
-  const sidebarRestoreBtn = document.getElementById("sidebarRestoreBtn");
+  const sidebarEmergencyManageBtn = document.getElementById(
+    "sidebarEmergencyManageBtn"
+  );
   const sidebarTrafficBtn = document.getElementById("sidebarTrafficBtn");
   const appFlexContainer = document.getElementById("appFlexContainer");
   const maximizeMapBtn = document.getElementById("maximizeMapBtn");
@@ -393,6 +651,7 @@ window.onload = async function () {
     sidebarRestoreBtn.style.display = "none";
     maximized = false;
   };
+
   sidebarCloseBtn.onclick = function () {
     sidebar.classList.remove("open");
     hamburgerBtn.style.display = "flex";
@@ -400,6 +659,7 @@ window.onload = async function () {
     appFlexContainer.classList.add("maximized");
     maximized = true;
   };
+
   sidebarRestoreBtn.onclick = function () {
     sidebar.classList.add("open");
     appFlexContainer.classList.remove("maximized");
@@ -435,6 +695,29 @@ window.onload = async function () {
       sidebarTilesetBtn.classList.add("active");
     }
   };
+
+  // Emergency Management button click handler
+  if (sidebarEmergencyManageBtn) {
+    sidebarEmergencyManageBtn.onclick = function () {
+      if (sidebarEmergencyManageBtn) {
+        sidebarEmergencyManageBtn.disabled = true;
+      }
+
+      const isVisible = toggleEmergencyEvents();
+
+      // Update button text based on visibility state
+      if (sidebarEmergencyManageBtn) {
+        if (isVisible) {
+          sidebarEmergencyManageBtn.textContent = "Hide Emergency Events";
+          sidebarEmergencyManageBtn.classList.add("active");
+        } else {
+          sidebarEmergencyManageBtn.textContent = "Show Emergency Events";
+          sidebarEmergencyManageBtn.classList.remove("active");
+        }
+        sidebarEmergencyManageBtn.disabled = false;
+      }
+    };
+  }
 
   sidebar.classList.remove("open");
   hamburgerBtn.style.display = "flex";

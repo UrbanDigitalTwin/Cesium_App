@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Load environment variables
-dotenv.config({ path: path.resolve(__dirname, "../config/.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 // Create express app
 const app = express();
@@ -20,6 +20,9 @@ const port = process.env.PORT || 3000; // Use environment port for Render.com or
 
 // Enable CORS for all routes
 app.use(cors());
+
+// Parse JSON request bodies
+app.use(express.json());
 
 // Define root directory for easier path resolution
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -173,8 +176,75 @@ app.get("/tomtom-traffic", async (req, res) => {
 app.get("/config", (req, res) => {
   // Only expose specific environment variables needed by the client
   res.json({
-    cesiumIonToken: process.env.CESIUM_ION_TOKEN || ""
+    cesiumIonToken: process.env.CESIUM_ION_TOKEN || "",
   });
+});
+
+// Emergency Management Event Data endpoint
+app.get("/em-event-data", async (req, res) => {
+  try {
+    const apiKey = process.env.EM_FIREBASE_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: "Firebase API key not configured" });
+    }
+
+    // Step 1: Get the idtoken by making a POST request to Firebase
+    const signUpResponse = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ returnSecureToken: true }),
+      }
+    );
+
+    if (!signUpResponse.ok) {
+      const errorData = await signUpResponse.json();
+      console.error("Firebase authentication error:", errorData);
+      return res.status(signUpResponse.status).json({
+        error: "Failed to authenticate with Firebase",
+        details: errorData,
+      });
+    }
+
+    const authData = await signUpResponse.json();
+    const idToken = authData.idToken;
+
+    if (!idToken) {
+      return res.status(500).json({ error: "Failed to get Firebase idToken" });
+    }
+
+    // Step 2: Use the idToken to get events data
+    const eventsResponse = await fetch(
+      "https://us-central1-cord2-6c88c.cloudfunctions.net/api/events",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${idToken}` },
+      }
+    );
+
+    if (!eventsResponse.ok) {
+      const errorData = await eventsResponse.json();
+      console.error("Events API error:", errorData);
+      return res.status(eventsResponse.status).json({
+        error: "Failed to fetch event data",
+        details: errorData,
+      });
+    }
+
+    const eventsData = await eventsResponse.json();
+    console.log(`Successfully retrieved ${eventsData.length} emergency events`);
+
+    // Return the events data to the client
+    res.json(eventsData);
+  } catch (error) {
+    console.error("Error in /em-event-data endpoint:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      message: error.message,
+    });
+  }
 });
 
 // AirNow proxy endpoint (integrated from airnow-proxy.js)
