@@ -509,7 +509,7 @@ window.onload = async function () {
             event.longitude,
             event.latitude
           ),
-          pixelSize: 12,
+          pixelSize: 14,
           color: color,
           outlineColor: Cesium.Color.WHITE,
           outlineWidth: 2,
@@ -529,7 +529,7 @@ window.onload = async function () {
             event.latitude
           ),
           point: {
-            pixelSize: 1, // Small size for hit testing only
+            pixelSize: 2, // Small size for hit testing only
             color: Cesium.Color.TRANSPARENT, // Transparent since we're using the point primitives for display
           },
           properties: {
@@ -563,15 +563,15 @@ window.onload = async function () {
         viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(
             eventData[0].longitude,
-            eventData[0].latitude,
-            10000 // Height in meters
+            eventData[0].latitude - 0.025,
+            2500 // Height in meters
           ),
           orientation: {
             heading: Cesium.Math.toRadians(0),
             pitch: Cesium.Math.toRadians(-45),
             roll: 0.0,
           },
-          duration: 3,
+          duration: 2,
         });
       }
     } catch (error) {
