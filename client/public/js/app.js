@@ -583,13 +583,17 @@ window.onload = async function () {
             color = Cesium.Color.YELLOW;
         }
 
-        // Add point primitive for each event
+        // Calculate a position elevated from the ground for better visibility
+        const elevatedPosition = Cesium.Cartesian3.fromDegrees(
+          event.longitude,
+          event.latitude,
+          50 // Height in meters above ground
+        );
+
+        // Add point primitive for each event (visual display)
         const point = pointPrimitives.add({
-          position: Cesium.Cartesian3.fromDegrees(
-            event.longitude,
-            event.latitude
-          ),
-          pixelSize: 14,
+          position: elevatedPosition,
+          pixelSize: 16,
           color: color,
           outlineColor: Cesium.Color.WHITE,
           outlineWidth: 2,
@@ -603,14 +607,12 @@ window.onload = async function () {
         });
 
         // Add the entity with additional information for click events
+        // Using a larger transparent hit area to make clicking easier
         const entity = viewer.entities.add({
-          position: Cesium.Cartesian3.fromDegrees(
-            event.longitude,
-            event.latitude
-          ),
+          position: elevatedPosition,
           point: {
-            pixelSize: 2, // Small size for hit testing only
-            color: Cesium.Color.TRANSPARENT, // Transparent since we're using the point primitives for display
+            pixelSize: 30, // Much larger size for easier hit testing
+            color: Cesium.Color.TRANSPARENT.withAlpha(0.01), // Nearly transparent but still detectable
           },
           properties: {
             id: event.id,
@@ -859,7 +861,6 @@ window.onload = async function () {
         };
       }
     } else {
-      console.log("No camera data found");
       infoPanel.style.display = "none";
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
