@@ -113,7 +113,7 @@ window.onload = async function () {
   function createEmergencyEventInfoBox(event) {
     // Format timestamp if available
     let timeStr = "Unknown";
-    if (event.time && event._seconds) {
+    if (event.time && event.time._seconds) {
       try {
         const date = new Date(event.time._seconds * 1000);
         timeStr = date.toLocaleString();
@@ -779,6 +779,7 @@ window.onload = async function () {
         };
       }
     } else {
+      console.log("No camera data found");
       infoPanel.style.display = "none";
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
