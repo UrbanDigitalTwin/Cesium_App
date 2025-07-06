@@ -122,25 +122,105 @@ window.onload = async function () {
       }
     }
 
-    // Create image gallery HTML if images exist
+    // Create image carousel HTML if images exist
     let imagesHtml = "";
     if (event.images && event.images.length > 0) {
-      imagesHtml = `
-        <div class="event-images">
-          <p><strong>Images:</strong></p>
-          <div class="image-gallery">
+      // Create a unique ID for this carousel
+      const carouselId = `carousel-${Date.now()}`;
+
+      // Generate carousel slides
+      const slides = event.images
+        .map((img, index) => {
+          return `
+          <div class="carousel-slide ${
+            index === 0 ? "active" : ""
+          }" data-index="${index}">
+            <img src="${img}" class="carousel-image" />
+          </div>
+        `;
+        })
+        .join("");
+
+      // Generate carousel navigation dots
+      const navDots =
+        event.images.length > 1
+          ? `
+          <div class="carousel-nav">
             ${event.images
               .map(
-                (img) =>
-                  `<img src="${img}" onclick="showImageBelowDialog('${img.replace(
-                    /'/g,
-                    "\\'"
-                  )}')"/>`
+                (_, index) =>
+                  `<span class="carousel-dot ${index === 0 ? "active" : ""}"
+                  onclick="navigateCarousel('${carouselId}', ${index})"></span>`
               )
               .join("")}
           </div>
+        `
+          : "";
+
+      // Add navigation buttons if there's more than one image
+      const navButtons =
+        event.images.length > 1
+          ? `
+          <button class="carousel-prev" onclick="navigateCarousel('${carouselId}', 'prev')">&#10094;</button>
+          <button class="carousel-next" onclick="navigateCarousel('${carouselId}', 'next')">&#10095;</button>
+        `
+          : "";
+
+      imagesHtml = `
+        <div class="event-images">
+          <p><strong>Images:</strong></p>
+          <div class="carousel-container" id="${carouselId}">
+            <div class="carousel-track">
+              ${slides}
+            </div>
+            ${navButtons}
+            ${navDots}
+          </div>
         </div>
       `;
+
+      // Add carousel navigation function if it doesn't exist
+      if (!window.navigateCarousel) {
+        window.navigateCarousel = function (carouselId, direction) {
+          const container = document.getElementById(carouselId);
+          if (!container) return;
+
+          const slides = container.querySelectorAll(".carousel-slide");
+          const dots = container.querySelectorAll(".carousel-dot");
+          if (!slides.length) return;
+
+          // Find current active slide
+          let activeIndex = 0;
+          slides.forEach((slide, i) => {
+            if (slide.classList.contains("active")) activeIndex = i;
+          });
+
+          // Calculate next index
+          let nextIndex;
+          if (direction === "next") {
+            nextIndex = (activeIndex + 1) % slides.length;
+          } else if (direction === "prev") {
+            nextIndex = (activeIndex - 1 + slides.length) % slides.length;
+          } else {
+            // If direction is a number, use that as the index
+            nextIndex = parseInt(direction);
+            if (
+              isNaN(nextIndex) ||
+              nextIndex < 0 ||
+              nextIndex >= slides.length
+            ) {
+              nextIndex = 0;
+            }
+          }
+
+          // Update active classes
+          slides.forEach((slide) => slide.classList.remove("active"));
+          dots.forEach((dot) => dot.classList.remove("active"));
+
+          slides[nextIndex].classList.add("active");
+          if (dots[nextIndex]) dots[nextIndex].classList.add("active");
+        };
+      }
     }
 
     return `
