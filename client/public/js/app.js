@@ -850,7 +850,7 @@ window.onload = async function () {
               </div>
               ${
                 data.image
-                  ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
+                  ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="data/camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
                   : ""
               }
             </div>
