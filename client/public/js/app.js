@@ -840,7 +840,7 @@ window.onload = async function () {
             <div style="display: flex; align-items: flex-start;">
               <div style="flex: 1; min-width: 0;">
                 <h3>Meta Data</h3>
-                <p><strong>Class:</strong> ${data.class}</p>
+                <!-- <p><strong>Class:</strong> ${data.class}</p> -->
                 <p><strong>Date:</strong> ${data.date}</p>
                 <p><strong>Time:</strong> ${data.time}</p>
                 <p><strong>Location:</strong><br>
@@ -850,7 +850,7 @@ window.onload = async function () {
               </div>
               ${
                 data.image
-                  ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="data/camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
+                  ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="data/camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div><div style="margin-left: 32px; margin-top: 24px;"><img src="data/segmented_camera/${data.image}.png" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
                   : ""
               }
             </div>
