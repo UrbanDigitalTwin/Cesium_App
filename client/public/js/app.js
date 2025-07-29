@@ -573,11 +573,14 @@ window.onload = async function () {
           case "hurricane":
             color = Cesium.Color.BLUE;
             break;
-          case "fire":
-            color = Cesium.Color.RED;
+          case "earthquake":
+            color = Cesium.Color.ORANGE;
             break;
-          case "flood":
-            color = Cesium.Color.CYAN;
+          case "tornado":
+            color = Cesium.Color.PURPLE;
+            break;
+          case "wildfire":
+            color = Cesium.Color.RED;
             break;
           default:
             color = Cesium.Color.YELLOW;
