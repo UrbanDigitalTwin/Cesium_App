@@ -17,7 +17,7 @@ window.onload = async function () {
   // 511NY Camera API Configuration
   let cameraEntities = [];
   let activeCameraInfoBox = null;
-  let camerasVisible = true; // Set to true by default
+  let camerasVisible = false; // Set to false by default
 
   // Emergency Management Configuration
   let emEventEntities = [];
@@ -58,7 +58,7 @@ window.onload = async function () {
             outlineColor: Cesium.Color.WHITE,
             outlineWidth: 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            show: camerasVisible, // Will now be true by default
+            show: camerasVisible, // Use the current camerasVisible state
           },
           properties: {
             name: camera.Name || "Unknown",
@@ -75,6 +75,8 @@ window.onload = async function () {
       console.log(`Added ${cameraEntities.length} camera entities`);
     } catch (error) {
       console.error("Error fetching camera data:", error);
+    } finally {
+      return;
     }
   }
 
@@ -343,7 +345,11 @@ window.onload = async function () {
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   // Function to toggle camera visibility
-  function toggleCameras() {
+  async function toggleCameras() {
+    // fetch camera data if it does not exist
+    if (cameraEntities.length === 0) {
+      await fetchAndProcessCameras();
+    }
     camerasVisible = !camerasVisible;
     cameraEntities.forEach((entity) => {
       if (entity.point) {
@@ -356,8 +362,9 @@ window.onload = async function () {
   // Add camera toggle button to the sidebar
   const sidebarCameraBtn = document.getElementById("nycGeojsonBtn");
   if (sidebarCameraBtn) {
-    sidebarCameraBtn.onclick = function () {
-      const isVisible = toggleCameras();
+    sidebarCameraBtn.onclick = async function () {
+      this.textContent = "Loading...";
+      const isVisible = await toggleCameras();
       this.classList.toggle("active");
       this.textContent = isVisible
         ? "Hide NY Street Cameras"
@@ -380,9 +387,6 @@ window.onload = async function () {
       }
     };
   }
-
-  // Fetch camera data after viewer initialization
-  fetchAndProcessCameras();
 
   let csvData = [];
   let tileset = null;
@@ -479,9 +483,6 @@ window.onload = async function () {
 
   loadTileset();
 
-  // Fetch camera data when app loads
-  fetchAndProcessCameras();
-
   // --- Live Traffic Layer Logic ---
   let trafficLayer = null;
   // No need to define API key here as it's handled by the server proxy
@@ -573,11 +574,14 @@ window.onload = async function () {
           case "hurricane":
             color = Cesium.Color.BLUE;
             break;
-          case "fire":
-            color = Cesium.Color.RED;
+          case "earthquake":
+            color = Cesium.Color.ORANGE;
             break;
-          case "flood":
-            color = Cesium.Color.CYAN;
+          case "tornado":
+            color = Cesium.Color.PURPLE;
+            break;
+          case "wildfire":
+            color = Cesium.Color.RED;
             break;
           default:
             color = Cesium.Color.YELLOW;
@@ -840,7 +844,7 @@ window.onload = async function () {
             <div style="display: flex; align-items: flex-start;">
               <div style="flex: 1; min-width: 0;">
                 <h3>Meta Data</h3>
-                <p><strong>Class:</strong> ${data.class}</p>
+                <!-- <p><strong>Class:</strong> ${data.class}</p> -->
                 <p><strong>Date:</strong> ${data.date}</p>
                 <p><strong>Time:</strong> ${data.time}</p>
                 <p><strong>Location:</strong><br>
@@ -850,7 +854,7 @@ window.onload = async function () {
               </div>
               ${
                 data.image
-                  ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
+                  ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="data/Camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div><div style="margin-left: 32px; margin-top: 24px;"><img src="data/segmented_camera/${data.image}.png" alt="Segmented Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
                   : ""
               }
             </div>
@@ -1354,8 +1358,28 @@ window.onload = async function () {
         mainPathEntity.show = !isVisible;
         window.mainPathPoints.forEach((pt) => (pt.show = !isVisible));
         this.classList.toggle("active", !isVisible);
+
+        // Move the Cesium camera viewer to the first data point
+        if (!isVisible) {
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              -81.2016141073140628,
+              28.5812889447392,
+              2500
+            ),
+            orientation: {
+              heading: Cesium.Math.toRadians(0),
+              pitch: Cesium.Math.toRadians(-60),
+              roll: 0.0,
+            },
+            duration: 2,
+          });
+        }
+
         // Always show 'Camera Interoperability' as button text
-        this.textContent = "Camera Interoperability";
+        this.textContent = !isVisible
+          ? "Hide Camera Interoperability Data"
+          : "Camera Interoperability";
       }
     };
   }
