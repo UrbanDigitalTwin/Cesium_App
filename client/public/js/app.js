@@ -17,7 +17,7 @@ window.onload = async function () {
   // 511NY Camera API Configuration
   let cameraEntities = [];
   let activeCameraInfoBox = null;
-  let camerasVisible = true; // Set to true by default
+  let camerasVisible = false; // Set to false by default
 
   // Emergency Management Configuration
   let emEventEntities = [];
@@ -58,7 +58,7 @@ window.onload = async function () {
             outlineColor: Cesium.Color.WHITE,
             outlineWidth: 1,
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            show: camerasVisible, // Will now be true by default
+            show: camerasVisible, // Use the current camerasVisible state
           },
           properties: {
             name: camera.Name || "Unknown",
@@ -346,7 +346,10 @@ window.onload = async function () {
 
   // Function to toggle camera visibility
   async function toggleCameras() {
-    // await fetchAndProcessCameras();
+    // fetch camera data if it does not exist
+    if (cameraEntities.length === 0) {
+      await fetchAndProcessCameras();
+    }
     camerasVisible = !camerasVisible;
     cameraEntities.forEach((entity) => {
       if (entity.point) {
@@ -360,6 +363,7 @@ window.onload = async function () {
   const sidebarCameraBtn = document.getElementById("nycGeojsonBtn");
   if (sidebarCameraBtn) {
     sidebarCameraBtn.onclick = async function () {
+      this.textContent = "Loading...";
       const isVisible = await toggleCameras();
       this.classList.toggle("active");
       this.textContent = isVisible
@@ -383,9 +387,6 @@ window.onload = async function () {
       }
     };
   }
-
-  // Fetch camera data after viewer initialization
-  // fetchAndProcessCameras();  // no need to fetch camera data on app load
 
   let csvData = [];
   let tileset = null;
@@ -481,9 +482,6 @@ window.onload = async function () {
   }
 
   loadTileset();
-
-  // Fetch camera data when app loads
-  fetchAndProcessCameras();
 
   // --- Live Traffic Layer Logic ---
   let trafficLayer = null;
