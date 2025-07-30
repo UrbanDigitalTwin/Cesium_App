@@ -75,6 +75,8 @@ window.onload = async function () {
       console.log(`Added ${cameraEntities.length} camera entities`);
     } catch (error) {
       console.error("Error fetching camera data:", error);
+    } finally {
+      return;
     }
   }
 
@@ -343,7 +345,8 @@ window.onload = async function () {
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   // Function to toggle camera visibility
-  function toggleCameras() {
+  async function toggleCameras() {
+    // await fetchAndProcessCameras();
     camerasVisible = !camerasVisible;
     cameraEntities.forEach((entity) => {
       if (entity.point) {
@@ -356,8 +359,8 @@ window.onload = async function () {
   // Add camera toggle button to the sidebar
   const sidebarCameraBtn = document.getElementById("nycGeojsonBtn");
   if (sidebarCameraBtn) {
-    sidebarCameraBtn.onclick = function () {
-      const isVisible = toggleCameras();
+    sidebarCameraBtn.onclick = async function () {
+      const isVisible = await toggleCameras();
       this.classList.toggle("active");
       this.textContent = isVisible
         ? "Hide NY Street Cameras"
@@ -382,7 +385,7 @@ window.onload = async function () {
   }
 
   // Fetch camera data after viewer initialization
-  fetchAndProcessCameras();
+  // fetchAndProcessCameras();  // no need to fetch camera data on app load
 
   let csvData = [];
   let tileset = null;
@@ -1357,8 +1360,28 @@ window.onload = async function () {
         mainPathEntity.show = !isVisible;
         window.mainPathPoints.forEach((pt) => (pt.show = !isVisible));
         this.classList.toggle("active", !isVisible);
+
+        // Move the Cesium camera viewer to the first data point
+        if (!isVisible) {
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+              -81.2016141073140628,
+              28.5812889447392,
+              2500
+            ),
+            orientation: {
+              heading: Cesium.Math.toRadians(0),
+              pitch: Cesium.Math.toRadians(-60),
+              roll: 0.0,
+            },
+            duration: 2,
+          });
+        }
+
         // Always show 'Camera Interoperability' as button text
-        this.textContent = "Camera Interoperability";
+        this.textContent = !isVisible
+          ? "Hide Camera Interoperability Data"
+          : "Camera Interoperability";
       }
     };
   }
