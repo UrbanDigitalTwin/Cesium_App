@@ -864,8 +864,22 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+    transition: background-color 0.5s ease;
     position: relative; /* For popup positioning */
   }
+  .bounding-box-ui.state-initial {
+    background-color: #333;
+  }
+  .bounding-box-ui.state-creating {
+    background-color: #646433;
+  }
+  .bounding-box-ui.state-inactive {
+    background-color: #734d4d;
+  }
+  .bounding-box-ui.state-active {
+    background-color: #336464;
+  }
+
   .bounding-box-title {
     font-weight: bold;
     font-size: 1.1em;

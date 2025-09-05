@@ -1574,12 +1574,24 @@ window.onload = async function () {
   const bbEditBtn = document.getElementById('bbEditBtn');
   const bbActivateBtn = document.getElementById('bbActivateBtn');
   const bbDeleteBtn = document.getElementById('bbDeleteBtn');
+  const boundingBoxUI = document.getElementById('boundingBoxUI');
+  const bbTitle = document.querySelector('.bounding-box-text');
+  const bbDescription = document.querySelector('.bounding-box-description');
+
+  // Define colors for different states
+  const colorCreating = Cesium.Color.YELLOW.withAlpha(0.5);
+  const colorInactive = new Cesium.Color(0.8, 0.2, 0.2, 0.3); // Dark pleasant red
+  const colorActive = Cesium.Color.CYAN.withAlpha(0.3);
   
   function updateBoundingBoxUI(newState) {
     boundingBoxState = newState;
 
     // Reset all buttons to a default state
     bbCreateBtn.textContent = 'Create';
+    bbTitle.textContent = 'Bounding Box';
+    bbDescription.textContent = 'Draw and manage analysis areas on the map.';
+    boundingBoxUI.className = 'bounding-box-ui'; // Reset class
+
     bbCreateBtn.disabled = false;
     bbEditBtn.disabled = true;
     bbActivateBtn.disabled = true;
@@ -1587,22 +1599,37 @@ window.onload = async function () {
 
     switch (boundingBoxState) {
       case 'initial':
-        // Default state is already set
+        boundingBoxUI.classList.add('state-initial');
         break;
       case 'creating':
         bbCreateBtn.textContent = 'Cancel';
+        bbTitle.textContent = 'Drawing Bounding Box...';
+        bbDescription.textContent = 'Click and drag to draw. Right-click to cancel.';
+        boundingBoxUI.classList.add('state-creating');
         break;
       case 'active':
         bbCreateBtn.disabled = true;
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = false;
         bbDeleteBtn.disabled = false;
-        bbActivateBtn.textContent = isBoundingBoxActivated ? 'Deactivate' : 'Activate';
+        if (isBoundingBoxActivated) {
+          bbActivateBtn.textContent = 'Deactivate';
+          bbTitle.textContent = 'Bounding Box Active';
+          bbDescription.textContent = 'Box is active. Filtering or analysis can be performed.';
+          boundingBoxUI.classList.add('state-active');
+        } else {
+          bbActivateBtn.textContent = 'Activate';
+          bbTitle.textContent = 'Bounding Box Set';
+          bbDescription.textContent = 'Box is ready. You can now edit, activate, or delete it.';
+          boundingBoxUI.classList.add('state-inactive');
+        }
         break;
       case 'editing':
         bbCreateBtn.textContent = 'Save';
         bbCreateBtn.disabled = false;
         bbEditBtn.textContent = 'Cancel Edit';
+        bbTitle.textContent = 'Editing Bounding Box';
+        bbDescription.textContent = 'Adjust the corners of the box. Click Save when done.';
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = true;
         bbDeleteBtn.disabled = true;
@@ -1658,7 +1685,7 @@ window.onload = async function () {
             // Return a minimal rectangle if not drawing
             return Cesium.Rectangle.fromCartesianArray([startPosition, startPosition]);
           }, false),
-          material: Cesium.Color.RED.withAlpha(0.5),
+          material: colorCreating,
           height: 0
         }
       });
@@ -1722,10 +1749,10 @@ window.onload = async function () {
     currentBoundingBox = viewer.entities.add({
       rectangle: {
         coordinates: rect,
-        material: Cesium.Color.YELLOW.withAlpha(0.2),
+        material: colorInactive,
         height: 0,
         outline: true,
-        outlineColor: Cesium.Color.YELLOW,
+        outlineColor: colorInactive.withAlpha(1.0),
         outlineWidth: 2
       }
     });
@@ -1779,13 +1806,13 @@ window.onload = async function () {
 
     if (isBoundingBoxActivated) {
       // Change appearance to "activated"
-      currentBoundingBox.rectangle.material = Cesium.Color.CYAN.withAlpha(0.2);
-      currentBoundingBox.rectangle.outlineColor = Cesium.Color.CYAN;
+      currentBoundingBox.rectangle.material = colorActive;
+      currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
       console.log('Bounding box activated.');
     } else {
       // Change appearance back to default "active" but not "activated"
-      currentBoundingBox.rectangle.material = Cesium.Color.YELLOW.withAlpha(0.2);
-      currentBoundingBox.rectangle.outlineColor = Cesium.Color.YELLOW;
+      currentBoundingBox.rectangle.material = colorInactive;
+      currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
     }
     updateBoundingBoxUI('active'); // Refresh the UI to update the button text
