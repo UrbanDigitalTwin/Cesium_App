@@ -1569,57 +1569,56 @@ window.onload = async function () {
   }
 
   // --- Bounding Box Functions ---
-  const boundingBoxControls = document.querySelector('.bounding-box-controls');
+  const bbCreateBtn = document.getElementById('bbCreateBtn');
+  const bbEditBtn = document.getElementById('bbEditBtn');
+  const bbActivateBtn = document.getElementById('bbActivateBtn');
+  const bbDeleteBtn = document.getElementById('bbDeleteBtn');
   
   function updateBoundingBoxUI(newState) {
     boundingBoxState = newState;
-    if (!boundingBoxControls) return;
-    boundingBoxControls.innerHTML = '';
 
-    if (boundingBoxState === 'initial') {
-      const createBtn = document.createElement('button');
-      createBtn.textContent = 'Create';
-      createBtn.className = 'bounding-box-btn';
-      createBtn.onclick = handleCreateBoundingBox;
-      boundingBoxControls.appendChild(createBtn);
-    } else if (boundingBoxState === 'creating') {
-      const cancelBtn = document.createElement('button');
-      cancelBtn.textContent = 'Cancel';
-      cancelBtn.className = 'bounding-box-btn';
-      cancelBtn.onclick = handleCancelBoundingBox;
-      boundingBoxControls.appendChild(cancelBtn);
-    } else if (boundingBoxState === 'active') {
-      const editBtn = document.createElement('button');
-      editBtn.textContent = 'Edit';
-      editBtn.className = 'bounding-box-btn';
-      editBtn.onclick = handleEditBoundingBox;
-      boundingBoxControls.appendChild(editBtn);
+    // Reset all buttons to a default state
+    bbCreateBtn.textContent = 'Create';
+    bbCreateBtn.disabled = false;
+    bbEditBtn.disabled = true;
+    bbActivateBtn.disabled = true;
+    bbDeleteBtn.disabled = true;
 
-      const activateBtn = document.createElement('button');
-      activateBtn.textContent = 'Activate';
-      activateBtn.className = 'bounding-box-btn';
-      activateBtn.onclick = handleActivateBoundingBox;
-      boundingBoxControls.appendChild(activateBtn);
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.textContent = 'Delete';
-      deleteBtn.className = 'bounding-box-btn';
-      deleteBtn.onclick = handleDeleteBoundingBox;
-      boundingBoxControls.appendChild(deleteBtn);
-    } else if (boundingBoxState === 'editing') {
-      const saveBtn = document.createElement('button');
-      saveBtn.textContent = 'Save';
-      saveBtn.className = 'bounding-box-btn';
-      saveBtn.onclick = handleSaveBoundingBox;
-      boundingBoxControls.appendChild(saveBtn);
-
-      const cancelEditBtn = document.createElement('button');
-      cancelEditBtn.textContent = 'Cancel Edit';
-      cancelEditBtn.className = 'bounding-box-btn';
-      cancelEditBtn.onclick = handleCancelEdit;
-      boundingBoxControls.appendChild(cancelEditBtn);
+    switch (boundingBoxState) {
+      case 'initial':
+        // Default state is already set
+        break;
+      case 'creating':
+        bbCreateBtn.textContent = 'Cancel';
+        break;
+      case 'active':
+        bbCreateBtn.disabled = true;
+        bbEditBtn.disabled = false;
+        bbActivateBtn.disabled = false;
+        bbDeleteBtn.disabled = false;
+        break;
+      case 'editing':
+        bbCreateBtn.textContent = 'Save';
+        bbCreateBtn.disabled = false;
+        bbEditBtn.textContent = 'Cancel Edit';
+        bbEditBtn.disabled = false;
+        bbActivateBtn.disabled = true;
+        bbDeleteBtn.disabled = true;
+        break;
     }
   }
+
+  bbCreateBtn.onclick = () => {
+    if (boundingBoxState === 'initial') handleCreateBoundingBox();
+    else if (boundingBoxState === 'creating') handleCancelBoundingBox();
+    else if (boundingBoxState === 'editing') handleSaveBoundingBox();
+  };
+  bbEditBtn.onclick = () => {
+    if (boundingBoxState === 'active') handleEditBoundingBox();
+    else if (boundingBoxState === 'editing') handleCancelEdit();
+  };
+  bbActivateBtn.onclick = handleActivateBoundingBox;
+  bbDeleteBtn.onclick = handleDeleteBoundingBox;
 
   function handleCreateBoundingBox() {
     updateBoundingBoxUI('creating');
@@ -1719,18 +1718,20 @@ window.onload = async function () {
   function handleEditBoundingBox() {
     updateBoundingBoxUI('editing');
     console.log('Enabling bounding box editing...');
+    bbEditBtn.textContent = 'Cancel Edit';
     // Implement editing logic here (e.g., using a Cesium.ScreenSpaceEventHandler to drag vertices)
     // For a simple rectangle, you would handle mouse down, move, and up to change coordinates
   }
 
   function handleSaveBoundingBox() {
     // Save the edited bounding box's new coordinates.
+    bbEditBtn.textContent = 'Edit';
     updateBoundingBoxUI('active');
     console.log('Saved bounding box edits.');
   }
 
   function handleCancelEdit() {
-    // Revert any changes made during editing.
+    bbEditBtn.textContent = 'Edit';
     updateBoundingBoxUI('active');
     console.log('Canceled bounding box edits, reverting to previous state.');
   }
@@ -1741,6 +1742,7 @@ window.onload = async function () {
       currentBoundingBox.rectangle.material = Cesium.Color.CYAN.withAlpha(0.2);
       currentBoundingBox.rectangle.outlineColor = Cesium.Color.CYAN;
       console.log('Bounding box activated.');
+      updateBoundingBoxUI('active'); // Ensure other buttons are enabled
     }
   }
 

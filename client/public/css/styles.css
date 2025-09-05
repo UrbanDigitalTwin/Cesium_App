@@ -889,6 +889,9 @@ html, body {
 .bounding-box-btn:hover {
   background-color: #0056b3;
 }
+.bounding-box-btn:disabled:hover {
+  background-color: #6c757d;
+}
 .bounding-box-btn:disabled {
   background-color: #6c757d;
   cursor: not-allowed;
