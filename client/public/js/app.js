@@ -1623,49 +1623,79 @@ window.onload = async function () {
   function handleCreateBoundingBox() {
     updateBoundingBoxUI('creating');
     console.log('Starting bounding box creation...');
-    
-    boundingBoxCoordinates = [];
-    if (tempBoundingBox) {
-      viewer.entities.remove(tempBoundingBox);
-      tempBoundingBox = null;
-    }
+    viewer.canvas.style.cursor = 'crosshair';
 
-    // Use a handler to capture the two points of the bounding box
+    let startPosition = null;
+    let isDrawing = false;
+
     boundingBoxHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
-    let firstPoint = null;
 
-    boundingBoxHandler.setInputAction(function (click) {
-      const cartesian = viewer.scene.pickPosition(click.position);
-      if (Cesium.defined(cartesian)) {
-        if (!firstPoint) {
-          firstPoint = cartesian;
-          // Start drawing the temp box as the mouse moves
-          boundingBoxHandler.setInputAction(function (move) {
-            const tempCartesian = viewer.scene.pickPosition(move.endPosition);
-            if (Cesium.defined(tempCartesian)) {
-              if (tempBoundingBox) {
-                viewer.entities.remove(tempBoundingBox);
-              }
-              const rect = Cesium.Rectangle.fromCartesianArray([firstPoint, tempCartesian]);
-              tempBoundingBox = viewer.entities.add({
-                rectangle: {
-                  coordinates: rect,
-                  material: Cesium.Color.RED.withAlpha(0.5),
-                  height: 0
-                }
-              });
-            }
-          }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-        } else {
-          // Second click completes the box
-          boundingBoxCoordinates = [firstPoint, cartesian];
-          finalizeBoundingBox();
-        }
+    // Handle mouse down: start drawing
+    boundingBoxHandler.setInputAction(function (event) {
+      isDrawing = true;
+      viewer.scene.screenSpaceCameraController.enableInputs = false; // Disable map controls
+      startPosition = viewer.scene.pickPosition(event.position);
+
+      // If we can't pick a position, cancel drawing
+      if (!Cesium.defined(startPosition)) {
+        isDrawing = false;
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+        return;
       }
-    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+      // Create a temporary box for visual feedback
+      if (tempBoundingBox) viewer.entities.remove(tempBoundingBox);
+      
+      tempBoundingBox = viewer.entities.add({
+        rectangle: {
+          // Use a callback property to update the rectangle dynamically
+          coordinates: new Cesium.CallbackProperty(function() {
+            if (isDrawing && Cesium.defined(startPosition) && Cesium.defined(mousePosition)) {
+              return Cesium.Rectangle.fromCartesianArray([startPosition, mousePosition]);
+            }
+            // Return a minimal rectangle if not drawing
+            return Cesium.Rectangle.fromCartesianArray([startPosition, startPosition]);
+          }, false),
+          material: Cesium.Color.RED.withAlpha(0.5),
+          height: 0
+        }
+      });
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    let mousePosition = null;
+    // Handle mouse move: update the box size
+    boundingBoxHandler.setInputAction(function (event) {
+      // Bypass drawing if modifier keys are pressed
+      if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+        if (isDrawing) {
+          handleCancelBoundingBox(); // Cancel if modifier is pressed mid-draw
+        }
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+        return;
+      } else if (isDrawing) {
+        viewer.scene.screenSpaceCameraController.enableInputs = false;
+      }
+
+      mousePosition = viewer.scene.pickPosition(event.endPosition);
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Handle mouse up: finalize the box
+    boundingBoxHandler.setInputAction(function (event) {
+      if (!isDrawing || !startPosition || !mousePosition) {
+        handleCancelBoundingBox();
+        return;
+      }
+      
+      isDrawing = false;
+      viewer.scene.screenSpaceCameraController.enableInputs = true; // Re-enable map controls
+
+      boundingBoxCoordinates = [startPosition, mousePosition];
+      finalizeBoundingBox();
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
 
     // Right click cancels the drawing
     boundingBoxHandler.setInputAction(function () {
+      viewer.scene.screenSpaceCameraController.enableInputs = true; // Re-enable map controls
       handleCancelBoundingBox();
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
   }
@@ -1674,6 +1704,7 @@ window.onload = async function () {
     if (boundingBoxHandler) {
       boundingBoxHandler.destroy();
       boundingBoxHandler = null;
+      viewer.canvas.style.cursor = 'default';
     }
     
     if (tempBoundingBox) {
@@ -1705,6 +1736,7 @@ window.onload = async function () {
     if (boundingBoxHandler) {
       boundingBoxHandler.destroy();
       boundingBoxHandler = null;
+      viewer.canvas.style.cursor = 'default';
     }
     if (tempBoundingBox) {
       viewer.entities.remove(tempBoundingBox);
