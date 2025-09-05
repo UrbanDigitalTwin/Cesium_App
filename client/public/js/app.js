@@ -23,6 +23,13 @@ window.onload = async function () {
   let emEventEntities = [];
   let emEventsVisible = false;
 
+  // --- Bounding Box Variables ---
+  let boundingBoxState = 'initial'; // States: 'initial', 'creating', 'active', 'editing'
+  let currentBoundingBox = null;
+  let boundingBoxHandler = null;
+  let tempBoundingBox = null;
+  let boundingBoxCoordinates = [];
+
   // Function to fetch and process camera data
   async function fetchAndProcessCameras() {
     try {
@@ -1560,4 +1567,192 @@ window.onload = async function () {
       }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
   }
+
+  // --- Bounding Box Functions ---
+  const boundingBoxControls = document.querySelector('.bounding-box-controls');
+  
+  function updateBoundingBoxUI(newState) {
+    boundingBoxState = newState;
+    if (!boundingBoxControls) return;
+    boundingBoxControls.innerHTML = '';
+
+    if (boundingBoxState === 'initial') {
+      const createBtn = document.createElement('button');
+      createBtn.textContent = 'Create';
+      createBtn.className = 'bounding-box-btn';
+      createBtn.onclick = handleCreateBoundingBox;
+      boundingBoxControls.appendChild(createBtn);
+    } else if (boundingBoxState === 'creating') {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.className = 'bounding-box-btn';
+      cancelBtn.onclick = handleCancelBoundingBox;
+      boundingBoxControls.appendChild(cancelBtn);
+    } else if (boundingBoxState === 'active') {
+      const editBtn = document.createElement('button');
+      editBtn.textContent = 'Edit';
+      editBtn.className = 'bounding-box-btn';
+      editBtn.onclick = handleEditBoundingBox;
+      boundingBoxControls.appendChild(editBtn);
+
+      const activateBtn = document.createElement('button');
+      activateBtn.textContent = 'Activate';
+      activateBtn.className = 'bounding-box-btn';
+      activateBtn.onclick = handleActivateBoundingBox;
+      boundingBoxControls.appendChild(activateBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.className = 'bounding-box-btn';
+      deleteBtn.onclick = handleDeleteBoundingBox;
+      boundingBoxControls.appendChild(deleteBtn);
+    } else if (boundingBoxState === 'editing') {
+      const saveBtn = document.createElement('button');
+      saveBtn.textContent = 'Save';
+      saveBtn.className = 'bounding-box-btn';
+      saveBtn.onclick = handleSaveBoundingBox;
+      boundingBoxControls.appendChild(saveBtn);
+
+      const cancelEditBtn = document.createElement('button');
+      cancelEditBtn.textContent = 'Cancel Edit';
+      cancelEditBtn.className = 'bounding-box-btn';
+      cancelEditBtn.onclick = handleCancelEdit;
+      boundingBoxControls.appendChild(cancelEditBtn);
+    }
+  }
+
+  function handleCreateBoundingBox() {
+    updateBoundingBoxUI('creating');
+    console.log('Starting bounding box creation...');
+    
+    boundingBoxCoordinates = [];
+    if (tempBoundingBox) {
+      viewer.entities.remove(tempBoundingBox);
+      tempBoundingBox = null;
+    }
+
+    // Use a handler to capture the two points of the bounding box
+    boundingBoxHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    let firstPoint = null;
+
+    boundingBoxHandler.setInputAction(function (click) {
+      const cartesian = viewer.scene.pickPosition(click.position);
+      if (Cesium.defined(cartesian)) {
+        if (!firstPoint) {
+          firstPoint = cartesian;
+          // Start drawing the temp box as the mouse moves
+          boundingBoxHandler.setInputAction(function (move) {
+            const tempCartesian = viewer.scene.pickPosition(move.endPosition);
+            if (Cesium.defined(tempCartesian)) {
+              if (tempBoundingBox) {
+                viewer.entities.remove(tempBoundingBox);
+              }
+              const rect = Cesium.Rectangle.fromCartesianArray([firstPoint, tempCartesian]);
+              tempBoundingBox = viewer.entities.add({
+                rectangle: {
+                  coordinates: rect,
+                  material: Cesium.Color.RED.withAlpha(0.5),
+                  height: 0
+                }
+              });
+            }
+          }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+        } else {
+          // Second click completes the box
+          boundingBoxCoordinates = [firstPoint, cartesian];
+          finalizeBoundingBox();
+        }
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    // Right click cancels the drawing
+    boundingBoxHandler.setInputAction(function () {
+      handleCancelBoundingBox();
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+  }
+
+  function finalizeBoundingBox() {
+    if (boundingBoxHandler) {
+      boundingBoxHandler.destroy();
+      boundingBoxHandler = null;
+    }
+    
+    if (tempBoundingBox) {
+      viewer.entities.remove(tempBoundingBox);
+      tempBoundingBox = null;
+    }
+
+    if (currentBoundingBox) {
+      viewer.entities.remove(currentBoundingBox);
+    }
+
+    const rect = Cesium.Rectangle.fromCartesianArray(boundingBoxCoordinates);
+    currentBoundingBox = viewer.entities.add({
+      rectangle: {
+        coordinates: rect,
+        material: Cesium.Color.YELLOW.withAlpha(0.2),
+        height: 0,
+        outline: true,
+        outlineColor: Cesium.Color.YELLOW,
+        outlineWidth: 2
+      }
+    });
+
+    console.log('Bounding box finalized:', rect);
+    updateBoundingBoxUI('active');
+  }
+
+  function handleCancelBoundingBox() {
+    if (boundingBoxHandler) {
+      boundingBoxHandler.destroy();
+      boundingBoxHandler = null;
+    }
+    if (tempBoundingBox) {
+      viewer.entities.remove(tempBoundingBox);
+      tempBoundingBox = null;
+    }
+    boundingBoxCoordinates = [];
+    updateBoundingBoxUI('initial');
+    console.log('Canceled bounding box creation.');
+  }
+
+  function handleEditBoundingBox() {
+    updateBoundingBoxUI('editing');
+    console.log('Enabling bounding box editing...');
+    // Implement editing logic here (e.g., using a Cesium.ScreenSpaceEventHandler to drag vertices)
+    // For a simple rectangle, you would handle mouse down, move, and up to change coordinates
+  }
+
+  function handleSaveBoundingBox() {
+    // Save the edited bounding box's new coordinates.
+    updateBoundingBoxUI('active');
+    console.log('Saved bounding box edits.');
+  }
+
+  function handleCancelEdit() {
+    // Revert any changes made during editing.
+    updateBoundingBoxUI('active');
+    console.log('Canceled bounding box edits, reverting to previous state.');
+  }
+  
+  function handleActivateBoundingBox() {
+    // Change the appearance of the bounding box to indicate it's active
+    if (currentBoundingBox) {
+      currentBoundingBox.rectangle.material = Cesium.Color.CYAN.withAlpha(0.2);
+      currentBoundingBox.rectangle.outlineColor = Cesium.Color.CYAN;
+      console.log('Bounding box activated.');
+    }
+  }
+
+  function handleDeleteBoundingBox() {
+    if (currentBoundingBox) {
+      viewer.entities.remove(currentBoundingBox);
+      currentBoundingBox = null;
+    }
+    updateBoundingBoxUI('initial');
+    console.log('Bounding box deleted.');
+  }
+
+  // Initial call to set up the bounding box UI
+  updateBoundingBoxUI('initial');
 };

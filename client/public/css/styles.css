@@ -851,3 +851,45 @@ html, body {
   .dropdown.open .dropdown-content {
     display: block;
   }
+
+
+  /* Bounding box UI */
+  .bounding-box-ui {
+  background-color: #333;
+  color: #fff;
+  padding: 10px;
+  border-top: 2px solid #555;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.bounding-box-title {
+  font-weight: bold;
+  font-size: 1.1em;
+  text-align: center;
+}
+.bounding-box-controls {
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+}
+.bounding-box-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  flex-grow: 1;
+  text-align: center;
+}
+.bounding-box-btn:hover {
+  background-color: #0056b3;
+}
+.bounding-box-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
