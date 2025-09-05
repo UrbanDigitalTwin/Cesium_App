@@ -29,6 +29,7 @@ window.onload = async function () {
   let boundingBoxHandler = null;
   let tempBoundingBox = null;
   let boundingBoxCoordinates = [];
+  let isBoundingBoxActivated = false;
 
   // Function to fetch and process camera data
   async function fetchAndProcessCameras() {
@@ -1596,6 +1597,7 @@ window.onload = async function () {
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = false;
         bbDeleteBtn.disabled = false;
+        bbActivateBtn.textContent = isBoundingBoxActivated ? 'Deactivate' : 'Activate';
         break;
       case 'editing':
         bbCreateBtn.textContent = 'Save';
@@ -1743,6 +1745,7 @@ window.onload = async function () {
       tempBoundingBox = null;
     }
     boundingBoxCoordinates = [];
+    isBoundingBoxActivated = false;
     updateBoundingBoxUI('initial');
     console.log('Canceled bounding box creation.');
   }
@@ -1769,19 +1772,30 @@ window.onload = async function () {
   }
   
   function handleActivateBoundingBox() {
-    // Change the appearance of the bounding box to indicate it's active
-    if (currentBoundingBox) {
+    if (!currentBoundingBox) return;
+
+    // Toggle the activation state
+    isBoundingBoxActivated = !isBoundingBoxActivated;
+
+    if (isBoundingBoxActivated) {
+      // Change appearance to "activated"
       currentBoundingBox.rectangle.material = Cesium.Color.CYAN.withAlpha(0.2);
       currentBoundingBox.rectangle.outlineColor = Cesium.Color.CYAN;
       console.log('Bounding box activated.');
-      updateBoundingBoxUI('active'); // Ensure other buttons are enabled
+    } else {
+      // Change appearance back to default "active" but not "activated"
+      currentBoundingBox.rectangle.material = Cesium.Color.YELLOW.withAlpha(0.2);
+      currentBoundingBox.rectangle.outlineColor = Cesium.Color.YELLOW;
+      console.log('Bounding box deactivated.');
     }
+    updateBoundingBoxUI('active'); // Refresh the UI to update the button text
   }
 
   function handleDeleteBoundingBox() {
     if (currentBoundingBox) {
       viewer.entities.remove(currentBoundingBox);
       currentBoundingBox = null;
+      isBoundingBoxActivated = false;
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
