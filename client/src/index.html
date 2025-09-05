@@ -108,13 +108,29 @@
         </div>
         <div id="boundingBoxUI" class="bounding-box-ui">
           <div class="bounding-box-title">
-            <span class="bounding-box-text">Bounding Box Controls</span>
+            <span class="bounding-box-text">Bounding Box</span>
+            <button id="bbInfoBtn" class="bb-info-btn">i</button>
           </div>
+          <p class="bounding-box-description">Draw and manage analysis areas on the map.</p>
           <div class="bounding-box-controls">
             <button id="bbCreateBtn" class="bounding-box-btn">Create</button>
             <button id="bbEditBtn" class="bounding-box-btn" disabled>Edit</button>
             <button id="bbActivateBtn" class="bounding-box-btn" disabled>Activate</button>
             <button id="bbDeleteBtn" class="bounding-box-btn" disabled>Delete</button>
+          </div>
+          <div id="bbInfoPopup" class="bb-info-popup">
+            <button id="bbInfoCloseBtn" class="bb-info-close-btn">&times;</button>
+            <h4>Controls Guide</h4>
+            <div class="bb-info-section">
+              <h5>Create / Cancel / Save</h5>
+              <p>This button changes based on the current mode. It allows you to start drawing, cancel an action, or save your edits.</p>
+              <div class="bb-info-img-placeholder">Image</div>
+            </div>
+            <div class="bb-info-section">
+              <h5>Activate / Deactivate</h5>
+              <p>Toggles the bounding box's active state. An active box (cyan) can be used for filtering or analysis.</p>
+              <div class="bb-info-img-placeholder">Image</div>
+            </div>
           </div>
         </div>
       </div>

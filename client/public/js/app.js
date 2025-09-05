@@ -1803,4 +1803,18 @@ window.onload = async function () {
 
   // Initial call to set up the bounding box UI
   updateBoundingBoxUI('initial');
+
+  // --- Bounding Box Info Popup Logic ---
+  const bbInfoBtn = document.getElementById('bbInfoBtn');
+  const bbInfoPopup = document.getElementById('bbInfoPopup');
+  const bbInfoCloseBtn = document.getElementById('bbInfoCloseBtn');
+
+  if (bbInfoBtn && bbInfoPopup && bbInfoCloseBtn) {
+    bbInfoBtn.onclick = function() {
+      bbInfoPopup.classList.toggle('visible');
+    };
+    bbInfoCloseBtn.onclick = function() {
+      bbInfoPopup.classList.remove('visible');
+    };
+  }
 };

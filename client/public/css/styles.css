@@ -855,22 +855,30 @@ html, body {
 
   /* Bounding box UI */
   .bounding-box-ui {
-  background-color: #333;
-  color: #fff;
-  padding: 10px;
-  border-top: 2px solid #555;
-  width: 100%;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.bounding-box-title {
-  font-weight: bold;
-  font-size: 1.1em;
-  text-align: center;
-}
-.bounding-box-controls {
+    background-color: #333;
+    color: #fff;
+    padding: 15px;
+    border-top: 2px solid #555;
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative; /* For popup positioning */
+  }
+  .bounding-box-title {
+    font-weight: bold;
+    font-size: 1.1em;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .bounding-box-description {
+    font-size: 0.85em;
+    color: #bbb;
+    margin: -5px 0 5px 0;
+  }
+  .bounding-box-controls {
   display: flex;
   justify-content: space-around;
   gap: 10px;
@@ -889,10 +897,72 @@ html, body {
 .bounding-box-btn:hover {
   background-color: #0056b3;
 }
-.bounding-box-btn:disabled:hover {
-  background-color: #6c757d;
-}
 .bounding-box-btn:disabled {
-  background-color: #6c757d;
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
   cursor: not-allowed;
+  opacity: 0.7;
 }
+.bounding-box-btn:disabled:hover {
+  background-color: #f8f9fa;
+  color: #6c757d;
+}
+
+.bb-info-btn {
+  background: #555;
+  color: #fff;
+  border: 1px solid #777;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-family: 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background-color 0.2s;
+}
+.bb-info-btn:hover {
+  background: #777;
+}
+
+.bb-info-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 15px;
+  right: 15px;
+  background: #444;
+  border: 1px solid #666;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s;
+}
+.bb-info-popup.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.bb-info-close-btn {
+  position: absolute;
+  top: 5px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 24px;
+  cursor: pointer;
+}
+.bb-info-section { margin-bottom: 15px; }
+.bb-info-section h5 { margin: 0 0 5px; color: #00aaff; }
+.bb-info-section p { font-size: 0.9em; color: #ddd; margin: 0 0 8px; }
+.bb-info-img-placeholder { background: #555; color: #888; text-align: center; padding: 20px; border-radius: 4px; font-size: 0.9em; }
