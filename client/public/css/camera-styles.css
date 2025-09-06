@@ -182,4 +182,14 @@
 .inline-video-close:hover {
   background: #e53935;
   color: #fff;
-} 
+}
+
+/* Styles for the static temperature legend */
+.static-legend .legend-labels {
+  justify-content: space-between;
+}
+
+.static-legend .legend-labels span {
+  flex: 1 1 0;
+  text-align: center;
+}

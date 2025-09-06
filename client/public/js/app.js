@@ -2033,6 +2033,12 @@ window.onload = async function () {
   let temperatureHeatmapEntity = null;
   let temperatureAnalysisRunning = false;
 
+  // --- Fixed Temperature Scale for Heatmap (Fahrenheit) ---
+  const HEATMAP_MIN_TEMP_F = 0;
+  const HEATMAP_MAX_TEMP_F = 110;
+  const HEATMAP_TEMP_RANGE_F = HEATMAP_MAX_TEMP_F - HEATMAP_MIN_TEMP_F;
+
+
   /**
    * Fetches a resource with a specified timeout.
    * @param {string} resource The URL to fetch.
@@ -2057,22 +2063,22 @@ window.onload = async function () {
    */
   function createColorGradient() {
     const colors = [];
-    // Blue -> Cyan -> Green -> Yellow -> Red gradient
+    // A more traditional Blue -> Green -> Yellow -> Red temperature gradient
     const colorStops = [
-        { stop: 0,    color: [0, 0, 255] },    // Blue
-        { stop: 0.4,  color: [0, 255, 255] },  // Cyan
-        { stop: 0.6,  color: [0, 255, 0] },    // Green
-        { stop: 0.8,  color: [255, 255, 0] },  // Yellow
-        { stop: 1,    color: [255, 0, 0] }    // Red
+      { stop: 0,    color: [0, 0, 255] },    // Coldest: Blue
+      { stop: 0.25, color: [0, 255, 255] },  // Cool: Cyan
+      { stop: 0.5,  color: [0, 255, 0] },    // Moderate: Green
+      { stop: 0.75, color: [255, 255, 0] },  // Warm: Yellow
+      { stop: 1,    color: [255, 0, 0] }     // Hottest: Red
     ];
 
     for (let i = 0; i < 256; i++) {
         const position = i / 255;
         let startStop, endStop;
         for (let j = 0; j < colorStops.length - 1; j++) {
-            if (position >= colorStops[j].stop && position <= colorStops[j+1].stop) {
+            if (position >= colorStops[j].stop && position <= colorStops[j + 1].stop) {
                 startStop = colorStops[j];
-                endStop = colorStops[j+1];
+                endStop = colorStops[j + 1];
                 break;
             }
         }
@@ -2144,29 +2150,25 @@ window.onload = async function () {
    */
   function renderTemperatureHeatmap(bounds, dataPoints) {
       if (dataPoints.length === 0) return;
-
-      // Find min/max for normalization
-      const temps = dataPoints.map(p => p.value);
-      const minTemp = Math.min(...temps);
-      const maxTemp = Math.max(...temps);
-      const tempRange = maxTemp - minTemp;
-
+  
       // Get the number of points per side to calculate dynamic blur
       const pointsPerSide = Math.sqrt(dataPoints.length);
-
+  
       // Normalize data and map to canvas coordinates
       const canvasWidth = 150;
       const canvasHeight = 150;
       const { west, south, east, north } = bounds;
       const lonRange = east - west;
       const latRange = north - south;
-
+  
       const canvasPoints = dataPoints.map(p => {
+          // Clamp the temperature to our fixed range (e.g., 0°F to 110°F)
+          const clampedTemp = Cesium.Math.clamp(p.value, HEATMAP_MIN_TEMP_F, HEATMAP_MAX_TEMP_F);
+          // Normalize the clamped temperature to a 0-1 value for the color gradient
           return {
               x: (Cesium.Math.toRadians(p.lon) - west) / lonRange,
               y: (north - Cesium.Math.toRadians(p.lat)) / latRange,
-              // Normalize, handle single point case by setting value to mid-range
-              value: tempRange > 0 ? (p.value - minTemp) / tempRange : 0.5
+              value: (clampedTemp - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F
           };
       });
 
@@ -2176,7 +2178,7 @@ window.onload = async function () {
       // The radius is increased significantly to ensure a very smooth blend.
       const radius = 15 + (16 - pointsPerSide) * 5;
       const heatmapCanvas = createHeatmapCanvas(canvasWidth, canvasHeight, canvasPoints, radius);
-
+  
       // Create Cesium entity
       if (temperatureHeatmapEntity) {
           viewer.entities.remove(temperatureHeatmapEntity);
@@ -2315,19 +2317,18 @@ window.onload = async function () {
 
         // 3. Extract the current temperature
         const temperatureData = gridData.properties.temperature;
-        const currentTemperatureC = temperatureData.values[0].value;
+        const tempC = temperatureData.values[0].value;
 
-        if (currentTemperatureC !== null) {
+        if (tempC !== null) {
+          // Convert Celsius to Fahrenheit
+          const tempF = tempC * 9 / 5 + 32;
           temperatureDataPoints.push({
             lon: point.lon,
             lat: point.lat,
-            value: currentTemperatureC
+            value: tempF
           });
         }
       } catch (error) {
-        if (error.name === 'AbortError') {
-          console.warn(`Request timed out for point ${point.lat},${point.lon}`);
-        }
         console.error(`Failed to fetch temp for point ${point.lat},${point.lon}:`, error);
       } finally {
         pointsProcessed++;
@@ -2346,11 +2347,16 @@ window.onload = async function () {
     if (temperatureDataPoints.length > 0) {
       renderTemperatureHeatmap(bounds, temperatureDataPoints);
 
+      const temps = temperatureDataPoints.map(p => p.value);
+      const minTemp = Math.min(...temps);
+      const maxTemp = Math.max(...temps);
       const totalTemp = temperatureDataPoints.reduce((sum, p) => sum + p.value, 0);
       const avgTemp = totalTemp / temperatureDataPoints.length;
       return {
-        message: `Heatmap displayed. Avg Temp: ${avgTemp.toFixed(1)}°C`,
-        value: avgTemp
+        message: `Avg Temp: ${avgTemp.toFixed(1)}°F`,
+        value: avgTemp,
+        minTemp: minTemp,
+        maxTemp: maxTemp
       };
     } else {
       return { message: 'Error: No temperature data found for this area.' };
@@ -2363,9 +2369,32 @@ window.onload = async function () {
       id: 'temperature',
       label: 'Temperature Grid',
       description: 'Displays a 5x5 grid of temperature points from NOAA NWS.',
-      analysisFn: fetchTemperatureData,
+      analysisFn: async (bounds) => {
+        // This wrapper ensures we can pass min/max to the display function
+        const result = await fetchTemperatureData(bounds);
+        return result;
+      },
       displayFn: (result, el) => {
-        el.textContent = result.message;
+        if (result.value !== undefined) {
+          const legendHtml = `
+            <div class="heatmap-legend static-legend">
+              <div class="legend-gradient"></div>
+              <div class="legend-labels">
+                <span>${HEATMAP_MIN_TEMP_F}°F</span>
+                <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.25).toFixed(0)}°</span>
+                <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.5).toFixed(0)}°</span>
+                <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.75).toFixed(0)}°</span>
+                <span>${HEATMAP_MAX_TEMP_F}°F</span>
+              </div>
+            </div>
+          `;
+          el.innerHTML = `
+            <div class="map-display-message">${result.message}</div>
+            ${legendHtml}
+          `;
+        } else {
+          el.textContent = result.message;
+        }
         el.classList.add('map-display');
       },
       metadata: `
