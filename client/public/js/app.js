@@ -1581,8 +1581,6 @@ window.onload = async function () {
   // --- Bounding Box Filter Dialog Elements ---
   const bbFilterDialog = document.getElementById('bbFilterDialog');
   const bbFilterToggleBtn = document.getElementById('bbFilterToggleBtn');
-  const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
-  const filterInfoButtons = document.querySelectorAll('.filter-info-btn');
   const bbFilterInfoPopup = document.getElementById('bbFilterInfoPopup');
   const bbFilterInfoContent = document.getElementById('bbFilterInfoContent');
   const bbFilterInfoCloseBtn = document.getElementById('bbFilterInfoCloseBtn');
@@ -1592,6 +1590,75 @@ window.onload = async function () {
   const colorCreating = Cesium.Color.YELLOW.withAlpha(0.5);
   const colorInactive = new Cesium.Color(0.8, 0.2, 0.2, 0.3); // Dark pleasant red
   const colorActive = Cesium.Color.CYAN.withAlpha(0.3);
+
+  // --- Dynamic Filter Definitions ---
+  const filterDefinitions = [
+    {
+      id: 'population',
+      label: 'Population Density',
+      description: 'Average population within the selected area.',
+      analysisFn: fetchPopulationData,
+      displayFn: (result, el) => {
+        el.textContent = `~${result.value} ${result.unit}`;
+        el.classList.remove('map-display');
+      },
+      metadata: {
+        title: 'Population Density',
+        source: 'WorldPop',
+        link: 'https://www.worldpop.org',
+        description: 'Provides estimates of population density based on satellite imagery and census data. Updated annually.'
+      }
+    },
+    {
+      id: 'temperature',
+      label: 'Temperature Map',
+      description: 'Displays a temperature heatmap over the area.',
+      analysisFn: fetchTemperatureData,
+      displayFn: (result, el) => {
+        el.textContent = result.message;
+        el.classList.add('map-display');
+        // Future: Add logic to show a heatmap entity here
+      },
+      metadata: {
+        title: 'Surface Temperature',
+        source: 'NASA MODIS',
+        link: 'https://modis.gsfc.nasa.gov',
+        description: 'Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.'
+      }
+    },
+    {
+      id: 'aqi',
+      label: 'Average AQI',
+      description: 'Calculates the average Air Quality Index.',
+      analysisFn: fetchAqiData,
+      displayFn: (result, el) => {
+        el.textContent = `${result.value} ${result.unit}`;
+        el.classList.remove('map-display');
+      },
+      metadata: {
+        title: 'Air Quality Index (AQI)',
+        source: 'OpenAQ Platform',
+        link: 'https://openaq.org',
+        description: 'Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.'
+      }
+    },
+    {
+      id: 'road-surface',
+      label: 'Road Surface Type',
+      description: 'Identifies the primary road surface material.',
+      analysisFn: fetchRoadSurfaceData,
+      displayFn: (result, el) => {
+        el.textContent = `Primarily ${result.value}`;
+        el.classList.remove('map-display');
+      },
+      metadata: {
+        title: 'Road Surface Material',
+        source: 'OpenStreetMap (OSM)',
+        link: 'https://www.openstreetmap.org',
+        description: 'Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.'
+      }
+    }
+  ];
   
   function updateBoundingBoxUI(newState) {
     boundingBoxState = newState;
@@ -1849,37 +1916,18 @@ window.onload = async function () {
     if (!currentBoundingBox) return;
     const bounds = currentBoundingBox.rectangle.coordinates.getValue();
 
-    for (const filterId in filterState) {
-      const item = document.querySelector(`.bb-filter-item[data-filter-id="${filterId}"]`);
-      const display = item.querySelector('.filter-display-result');
+    for (const filterId in filterState) {      
+      if (filterState[filterId]) { // If filter is checked        
+        const def = filterDefinitions.find(d => d.id === filterId);
+        if (!def || !def.analysisFn) continue;
 
-      if (filterState[filterId]) { // If filter is checked
+        const item = document.querySelector(`.bb-filter-item[data-filter-id="${filterId}"]`);
+        const display = item.querySelector('.filter-display-result');
+        
         display.textContent = 'Loading...';
-        let result;
         try {
-          switch (filterId) {
-            case 'population':
-              result = await fetchPopulationData(bounds);
-              display.textContent = `~${result.value} ${result.unit}`;
-              display.classList.remove('map-display');
-              break;
-            case 'temperature':
-              result = await fetchTemperatureData(bounds);
-              display.textContent = result.message;
-              display.classList.add('map-display');
-              // Add logic to show a heatmap entity here
-              break;
-            case 'aqi':
-              result = await fetchAqiData(bounds);
-              display.textContent = `${result.value} ${result.unit}`;
-              display.classList.remove('map-display');
-              break;
-            case 'road-surface':
-              result = await fetchRoadSurfaceData(bounds);
-              display.textContent = `Primarily ${result.value}`;
-              display.classList.remove('map-display');
-              break;
-          }
+          const result = await def.analysisFn(bounds);
+          def.displayFn(result, display);
         } catch (error) {
           display.textContent = 'Error';
           console.error(`Analysis failed for ${filterId}:`, error);
@@ -1943,9 +1991,6 @@ window.onload = async function () {
     console.log('Bounding box deleted.');
   }
 
-  // Initial call to set up the bounding box UI
-  updateBoundingBoxUI('initial');
-
   // --- Bounding Box Info Popup Logic ---
   const bbInfoBtn = document.getElementById('bbInfoBtn');
   const bbInfoPopup = document.getElementById('bbInfoPopup');
@@ -1960,52 +2005,61 @@ window.onload = async function () {
     };
   }
 
-  // --- Filter Metadata Popup Logic ---
-  const metadata = {
-    population: {
-      title: 'Population Density',
-      source: 'WorldPop',
-      link: 'https://www.worldpop.org',
-      description: 'Provides estimates of population density based on satellite imagery and census data. Updated annually.'
-    },
-    temperature: {
-      title: 'Surface Temperature',
-      source: 'NASA MODIS',
-      link: 'https://modis.gsfc.nasa.gov',
-      description: 'Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.'
-    },
-    aqi: {
-      title: 'Air Quality Index (AQI)',
-      source: 'OpenAQ Platform',
-      link: 'https://openaq.org',
-      description: 'Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.'
-    },
-    'road-surface': {
-      title: 'Road Surface Material',
-      source: 'OpenStreetMap (OSM)',
-      link: 'https://www.openstreetmap.org',
-      description: 'Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.'
-    }
-  };
+  function handleFilterInfoClick(e) {
+    bbInfoPopup.classList.remove('visible'); // Hide other popup
+    const filterId = e.target.dataset.info;
+    const def = filterDefinitions.find(d => d.id === filterId);
+    if (!def) return;
 
-  filterInfoButtons.forEach(button => {
-    button.addEventListener('click', (e) => {
-      const filterId = e.target.dataset.info;
-      const data = metadata[filterId];
-      bbFilterInfoContent.innerHTML = `
-        <h5>${data.title}</h5>
-        <p>${data.description}</p>
-        <p><strong>Source:</strong> <a href="${data.link}" target="_blank">${data.source}</a></p>
-      `;
-      bbFilterInfoPopup.classList.add('visible');
-    });
-  });
+    const data = def.metadata;
+    bbFilterInfoContent.innerHTML = `
+      <h5>${data.title}</h5>
+      <p>${data.description}</p>
+      <p><strong>Source:</strong> <a href="${data.link}" target="_blank">${data.source}</a></p>
+    `;
+
+    const btnRect = e.target.getBoundingClientRect();
+    const sidebarRect = document.getElementById('sidebar').getBoundingClientRect();
+    bbFilterInfoPopup.style.top = `${btnRect.top - sidebarRect.top}px`;
+    bbFilterInfoPopup.classList.add('visible');
+  }
 
   if (bbFilterInfoCloseBtn) {
     bbFilterInfoCloseBtn.onclick = () => bbFilterInfoPopup.classList.remove('visible');
   }
 
-  // --- Bounding Box Filter Dialog Logic ---
+  function initializeFilterDialog() {
+    const filterContent = document.getElementById('bbFilterContent');
+    if (!filterContent) return;
+    filterContent.innerHTML = ''; // Clear any hardcoded content
+
+    filterDefinitions.forEach(def => {
+      const item = document.createElement('div');
+      item.className = 'bb-filter-item';
+      item.dataset.filterId = def.id;
+
+      item.innerHTML = `
+        <div class="bb-filter-item-header">
+          <label for="filter-${def.id}-checkbox">${def.label}</label>
+          <button class="bb-info-btn filter-info-btn" data-info="${def.id}">i</button>
+        </div>
+        <p class="bb-filter-item-desc">${def.description}</p>
+        <div class="bb-filter-control">
+          <input type="checkbox" id="filter-${def.id}-checkbox" class="filter-checkbox">
+          <div class="filter-display-result hidden"></div>
+        </div>
+      `;
+      filterContent.appendChild(item);
+
+      const checkbox = item.querySelector('.filter-checkbox');
+      filterState[def.id] = checkbox.checked;
+      checkbox.addEventListener('change', (e) => { filterState[def.id] = e.target.checked; });
+
+      const infoBtn = item.querySelector('.filter-info-btn');
+      infoBtn.addEventListener('click', handleFilterInfoClick);
+    });
+  }
+
   if (bbFilterToggleBtn) {
     bbFilterToggleBtn.onclick = function() {
       const isMinimized = bbFilterDialog.classList.toggle('minimized');
@@ -2014,11 +2068,7 @@ window.onload = async function () {
     };
   }
 
-  filterCheckboxes.forEach(checkbox => {
-    const filterId = checkbox.closest('.bb-filter-item').dataset.filterId;
-    filterState[filterId] = checkbox.checked; // Initialize state
-    checkbox.addEventListener('change', (e) => {
-      filterState[filterId] = e.target.checked;
-    });
-  });
+  // Initial setup calls
+  initializeFilterDialog();
+  updateBoundingBoxUI('initial');
 };
