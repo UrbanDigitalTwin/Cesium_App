@@ -1950,24 +1950,46 @@ window.onload = async function () {
     // Toggle the activation state
     isBoundingBoxActivated = !isBoundingBoxActivated;
 
-    // Update filter UI based on activation state
     const filterItems = document.querySelectorAll('.bb-filter-item');
     filterItems.forEach(item => {
       const checkbox = item.querySelector('.filter-checkbox');
       const display = item.querySelector('.filter-display-result');
+      const control = item.querySelector('.bb-filter-control');
+      const description = item.querySelector('.bb-filter-item-desc');
+      const infoBtn = item.querySelector('.bb-filter-info-btn');
+      const filterId = item.dataset.filterId;
+      const isSelected = filterState[filterId];
 
       if (isBoundingBoxActivated) {
         item.classList.add('locked');
-        checkbox.classList.add('hidden');
         checkbox.disabled = true;
-        display.classList.remove('hidden');
-        display.textContent = filterState[item.dataset.filterId] ? 'Pending...' : 'Not applied';
+
+        if (isSelected) {
+          // This filter was selected, show its result area
+          item.classList.remove('inactive-while-locked');
+          checkbox.classList.add('hidden');
+          display.classList.remove('hidden');
+          display.textContent = 'Pending...';
+          if (description) description.style.display = '';
+          if (infoBtn) infoBtn.style.display = '';
+        } else {
+          // This filter was NOT selected, gray it out
+          item.classList.add('inactive-while-locked');
+          if (control) control.classList.add('hidden');
+          if (description) description.style.display = 'none';
+          if (infoBtn) infoBtn.style.display = 'none';
+        }
       } else {
+        // Deactivating the box, reset all filters to their default state
         item.classList.remove('locked');
+        item.classList.remove('inactive-while-locked');
+        if (control) control.classList.remove('hidden');
         checkbox.classList.remove('hidden');
         checkbox.disabled = false;
         display.classList.add('hidden');
         display.textContent = ''; // Clear old results
+        if (description) description.style.display = '';
+        if (infoBtn) infoBtn.style.display = '';
       }
     });
 
