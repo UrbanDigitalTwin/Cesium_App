@@ -284,7 +284,9 @@ html, body {
     display: none;
   }
   .bb-filter-dialog.minimized .bb-filter-content {
-    display: none;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
   }
   .bb-filter-header {
     display: flex;
@@ -319,6 +321,9 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    overflow: hidden;
+    max-height: 500px; /* Adjust if content grows larger */
+    transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
   }
   .bb-filter-item {
     background: #3a3a3a;
