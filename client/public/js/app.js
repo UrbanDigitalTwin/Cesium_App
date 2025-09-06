@@ -30,6 +30,12 @@ window.onload = async function () {
   let tempBoundingBox = null;
   let boundingBoxCoordinates = [];
   let isBoundingBoxActivated = false;
+  let editHandles = [];
+  let editingHandler = null;
+  let originalBoundingBoxCartesians = null;
+  let draggedHandle = null;
+  let isDraggingHandle = false;
+  let cameraPanRequest = null;
 
   // Function to fetch and process camera data
   async function fetchAndProcessCameras() {
@@ -1697,9 +1703,10 @@ window.onload = async function () {
       case 'editing':
         bbCreateBtn.textContent = 'Save';
         bbCreateBtn.disabled = false;
-        bbEditBtn.textContent = 'Cancel Edit';
+        bbEditBtn.textContent = 'Cancel';
         bbTitle.textContent = 'Editing Bounding Box';
         bbDescription.textContent = 'Adjust the corners of the box. Click Save when done.';
+        boundingBoxUI.classList.add('state-creating'); // Use same color as creating
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = true;
         bbDeleteBtn.disabled = true;
@@ -1866,22 +1873,208 @@ window.onload = async function () {
     console.log('Canceled bounding box creation.');
   }
 
+  function createEditHandles() {
+    if (!currentBoundingBox) return;
+
+    const rect = currentBoundingBox.rectangle.coordinates.getValue();
+    const positions = [
+      new Cesium.Cartesian3.fromRadians(rect.west, rect.north), // NW
+      new Cesium.Cartesian3.fromRadians(rect.east, rect.north), // NE
+      new Cesium.Cartesian3.fromRadians(rect.east, rect.south), // SE
+      new Cesium.Cartesian3.fromRadians(rect.west, rect.south), // SW
+    ];
+
+    positions.forEach((pos, index) => {
+      const handle = viewer.entities.add({
+        position: pos,
+        point: {
+          pixelSize: 12,
+          color: Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY, // Always render on top
+        },
+        properties: {
+          isEditHandle: true,
+          corner: ['NW', 'NE', 'SE', 'SW'][index]
+        }
+      });
+      editHandles.push(handle);
+    });
+  }
+
+  function removeEditHandles() {
+    editHandles.forEach(h => viewer.entities.remove(h));
+    editHandles = [];
+  }
+
+  function panCameraOnEdgeDrag(mousePosition) {
+    const canvas = viewer.canvas;
+    const margin = 50; // pixels from edge
+    let moveDirection = new Cesium.Cartesian2(0, 0);
+
+    if (mousePosition.x < margin) moveDirection.x = -1;
+    else if (mousePosition.x > canvas.clientWidth - margin) moveDirection.x = 1;
+
+    if (mousePosition.y < margin) moveDirection.y = -1;
+    else if (mousePosition.y > canvas.clientHeight - margin) moveDirection.y = 1;
+
+    if (moveDirection.x !== 0 || moveDirection.y !== 0) {
+      if (!cameraPanRequest) {
+        const pan = () => {
+          const moveRate = 5.0; // pixels per frame
+          viewer.camera.moveRight(moveDirection.x * moveRate);
+          viewer.camera.moveUp(moveDirection.y * -moveRate); // Y is inverted in screen space
+          cameraPanRequest = requestAnimationFrame(pan);
+        };
+        cameraPanRequest = requestAnimationFrame(pan);
+      }
+    } else {
+      if (cameraPanRequest) {
+        cancelAnimationFrame(cameraPanRequest);
+        cameraPanRequest = null;
+      }
+    }
+  }
+
   function handleEditBoundingBox() {
+    if (!currentBoundingBox) return;
     updateBoundingBoxUI('editing');
+    bbEditBtn.textContent = 'Cancel';
+    let activeRectangle = null;
+
+    // Store original state for cancellation
+    if (currentBoundingBox.rectangle.material) {
+      currentBoundingBox.rectangle.material = colorCreating;
+    }
+
+    const rect = currentBoundingBox.rectangle.coordinates.getValue();
+    activeRectangle = Cesium.Rectangle.clone(rect);
+    originalBoundingBoxCartesians = Cesium.Rectangle.clone(rect);
+
+    createEditHandles();
+
+    editingHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    viewer.canvas.style.cursor = 'move';
+
+    editingHandler.setInputAction(event => {
+      const pickedObject = viewer.scene.pick(event.position);
+      if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.properties.isEditHandle) {
+        isDraggingHandle = true;
+        draggedHandle = pickedObject.id;
+        viewer.scene.screenSpaceCameraController.enableInputs = false;
+        viewer.canvas.style.cursor = 'grabbing';
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    editingHandler.setInputAction(event => {
+      if (isDraggingHandle && draggedHandle) {
+        const newPosition = viewer.scene.pickPosition(event.endPosition);
+        if (Cesium.defined(newPosition)) {
+          // Only update the handle's position. The CallbackProperty will handle the rest.
+          // --- New Intuitive Drag Logic ---
+          const newCartographic = Cesium.Cartographic.fromCartesian(newPosition);
+          const cornerType = draggedHandle.properties.corner.getValue();
+
+          // Update the appropriate edge of the rectangle based on which corner is being dragged
+          let { north, south, east, west } = activeRectangle;
+          if (cornerType.includes('N')) north = newCartographic.latitude;
+          if (cornerType.includes('S')) south = newCartographic.latitude;
+          if (cornerType.includes('W')) west = newCartographic.longitude;
+          if (cornerType.includes('E')) east = newCartographic.longitude;
+
+          // --- FIX: Ensure north >= south and east >= west ---
+          activeRectangle.north = Math.max(north, south);
+          activeRectangle.south = Math.min(north, south);
+          activeRectangle.east = Math.max(east, west);
+          activeRectangle.west = Math.min(east, west);
+          // --- End of Fix ---
+
+          // Update all handle positions based on the new rectangle coordinates
+          editHandles.forEach(handle => {
+            const handleCorner = handle.properties.corner.getValue();
+            let lon = handleCorner.includes('W') ? activeRectangle.west : activeRectangle.east;
+            let lat = handleCorner.includes('N') ? activeRectangle.north : activeRectangle.south;
+            handle.position = Cesium.Cartesian3.fromRadians(lon, lat);
+          });
+
+        } else {
+          // If newPosition is undefined (e.g., pointing at the sky), do nothing to prevent errors.
+        }
+
+        // Check if we need to pan the camera
+        panCameraOnEdgeDrag(event.endPosition);
+      }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    // Use a CallbackProperty for smooth, real-time updates
+    currentBoundingBox.rectangle.coordinates = new Cesium.CallbackProperty(() => {
+      return activeRectangle;
+    }, false);
+
+    editingHandler.setInputAction(() => {
+      isDraggingHandle = false;
+      draggedHandle = null;
+      viewer.scene.screenSpaceCameraController.enableInputs = true;
+      viewer.canvas.style.cursor = 'move';
+      if (cameraPanRequest) {
+        cancelAnimationFrame(cameraPanRequest);
+        cameraPanRequest = null;
+      }
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+
     console.log('Enabling bounding box editing...');
-    bbEditBtn.textContent = 'Cancel Edit';
-    // Implement editing logic here (e.g., using a Cesium.ScreenSpaceEventHandler to drag vertices)
-    // For a simple rectangle, you would handle mouse down, move, and up to change coordinates
   }
 
   function handleSaveBoundingBox() {
-    // Save the edited bounding box's new coordinates.
+    if (editingHandler) {
+      editingHandler.destroy();
+      editingHandler = null;
+    }
+    removeEditHandles();
+    viewer.canvas.style.cursor = 'default';
+
+    // Finalize the new coordinates
+    if (currentBoundingBox) {
+      const finalRect = currentBoundingBox.rectangle.coordinates.getValue();
+      boundingBoxCoordinates = [
+        Cesium.Cartesian3.fromRadians(finalRect.west, finalRect.south),
+        Cesium.Cartesian3.fromRadians(finalRect.east, finalRect.north)
+      ];
+      // Revert to a static rectangle for performance
+      currentBoundingBox.rectangle.coordinates = finalRect;
+
+      // --- FIX: Restore the correct color after saving ---
+      if (isBoundingBoxActivated) {
+        currentBoundingBox.rectangle.material = colorActive;
+        currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
+      } else {
+        currentBoundingBox.rectangle.material = colorInactive;
+        currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
+      }
+    }
+    originalBoundingBoxCartesians = null;
+
     bbEditBtn.textContent = 'Edit';
     updateBoundingBoxUI('active');
     console.log('Saved bounding box edits.');
   }
 
   function handleCancelEdit() {
+    if (editingHandler) {
+      editingHandler.destroy();
+      editingHandler = null;
+    }
+    removeEditHandles();
+    viewer.canvas.style.cursor = 'default';
+
+    // Revert to original coordinates
+    if (currentBoundingBox && originalBoundingBoxCartesians) {
+      // Revert to the static, original rectangle
+      currentBoundingBox.rectangle.coordinates = originalBoundingBoxCartesians;
+    }
+    originalBoundingBoxCartesians = null;
+
     bbEditBtn.textContent = 'Edit';
     updateBoundingBoxUI('active');
     console.log('Canceled bounding box edits, reverting to previous state.');
