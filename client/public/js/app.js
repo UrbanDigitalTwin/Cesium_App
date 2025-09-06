@@ -1673,6 +1673,10 @@ window.onload = async function () {
     bbActivateBtn.disabled = true;
     bbDeleteBtn.disabled = true;
 
+    // Reset title attribute for activate button
+    bbActivateBtn.removeAttribute('title');
+
+
     switch (boundingBoxState) {
       case 'initial':
         boundingBoxUI.classList.add('state-initial');
@@ -1688,6 +1692,14 @@ window.onload = async function () {
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = false;
         bbDeleteBtn.disabled = false;
+
+        // Check if any filter is selected
+        const anyFilterSelected = Object.values(filterState).some(v => v);
+        if (!anyFilterSelected) {
+          bbActivateBtn.disabled = true;
+          bbActivateBtn.title = 'Enable one or more filters to query';
+        }
+
         if (isBoundingBoxActivated) {
           bbActivateBtn.textContent = 'Deactivate';
           bbTitle.textContent = 'Bounding Box Active';
@@ -2239,7 +2251,15 @@ window.onload = async function () {
   function showFilterMetadataPopup(filterId) {
     // Remove any existing popups first to avoid duplicates
     const existingPopup = document.getElementById('filterMetadataPopup');
-    if (existingPopup) existingPopup.remove();
+    // If a popup for the same filter is already open, close it and return.
+    if (existingPopup && existingPopup.dataset.filterId === filterId) {
+      existingPopup.remove();
+      return;
+    }
+    // If any other popup is open, remove it before showing the new one.
+    if (existingPopup) {
+      existingPopup.remove();
+    }
   
     const filterDefinition = filterDefinitions.find(def => def.id === filterId);
     if (!filterDefinition) return;
@@ -2250,6 +2270,7 @@ window.onload = async function () {
     // Create the popup dynamically
     const popup = document.createElement('div');
     popup.id = 'filterMetadataPopup';
+    popup.dataset.filterId = filterId; // Tag popup with its filter ID
     popup.className = 'bb-info-popup visible';
   
     popup.innerHTML = `
@@ -2284,13 +2305,15 @@ window.onload = async function () {
       item.dataset.filterId = def.id;
 
       item.innerHTML = `
-        <div class="bb-filter-item-header">
-          <label for="filter-${def.id}-checkbox">${def.label}</label>
-          <button class="bb-filter-info-btn" title="Show metadata for ${def.label}">i</button>
-        </div>
-        <p class="bb-filter-item-desc">${def.description}</p>
         <div class="bb-filter-control">
           <input type="checkbox" id="filter-${def.id}-checkbox" class="filter-checkbox" />
+        </div>
+        <div class="bb-filter-item-text-content">
+          <div class="bb-filter-item-header">
+            <label for="filter-${def.id}-checkbox">${def.label}</label>
+            <button class="bb-filter-info-btn" title="Show metadata for ${def.label}">i</button>
+          </div>
+          <p class="bb-filter-item-desc">${def.description}</p>
           <div class="filter-display-result hidden"></div>
         </div>
       `;
@@ -2298,7 +2321,10 @@ window.onload = async function () {
 
       const checkbox = item.querySelector('.filter-checkbox');
       filterState[def.id] = checkbox.checked;
-      checkbox.addEventListener('change', (e) => { filterState[def.id] = e.target.checked; });
+      checkbox.addEventListener('change', (e) => { 
+        filterState[def.id] = e.target.checked;
+        updateBoundingBoxUI(boundingBoxState); // Re-evaluate button states
+      });
 
       const infoBtn = item.querySelector('.bb-filter-info-btn');
       infoBtn.addEventListener('click', (e) => {

@@ -330,7 +330,10 @@ html, body {
     padding: 10px;
     border-radius: 6px;
     border: 1px solid #555;
-    position: relative; /* For positioning the info popup */
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
   .bb-filter-item.locked {
     opacity: 0.8;
@@ -372,21 +375,26 @@ html, body {
   }
   .bb-filter-item-desc {
     font-size: 0.8em;
-    color: #ccc;
+    color: #ccc;    
     margin: 4px 0 8px 0;
+  }
+  .bb-filter-item-text-content {
+    flex-grow: 1;
   }
   .bb-filter-control .filter-checkbox {
     accent-color: #00aaff;
     cursor: pointer;
     transform: scale(1.1);
-    margin-right: 5px;
   }
-  .bb-filter-control .filter-display-result {
+  .bb-filter-control {
+    flex-shrink: 0;
+  }
+  .filter-display-result {
     font-size: 0.9em;
     font-weight: bold;
     color: #4caf50;
   }
-  .bb-filter-control .filter-display-result.map-display {
+  .filter-display-result.map-display {
     color: #2196f3;
   }
   .hidden {
@@ -1047,6 +1055,10 @@ html, body {
   border: 1px solid #dee2e6;
   cursor: not-allowed;
   opacity: 0.7;
+}
+/* Ensure title attribute is shown on hover for disabled buttons */
+.bounding-box-btn:disabled[title] {
+  pointer-events: auto;
 }
 .bounding-box-btn:disabled:hover {
   background-color: #f8f9fa;
