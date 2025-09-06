@@ -1582,6 +1582,7 @@ window.onload = async function () {
   const bbActivateBtn = document.getElementById('bbActivateBtn');
   const bbDeleteBtn = document.getElementById('bbDeleteBtn');
   const boundingBoxUI = document.getElementById('boundingBoxUI');
+  let heatmapEntities = []; // To store heatmap entities
   const bbTitle = document.querySelector('.bounding-box-text');
   const bbDescription = document.querySelector('.bounding-box-description');
 
@@ -1602,10 +1603,6 @@ window.onload = async function () {
       label: 'Population Density',
       description: 'Average population within the selected area.',
       analysisFn: fetchPopulationData,
-      displayFn: (result, el) => {
-        el.textContent = `~${result.value} ${result.unit}`;
-        el.classList.remove('map-display');
-      },
       metadata: `
         <h5>Population Density</h5>
         <p>Provides estimates of population density based on satellite imagery and census data. Updated annually.</p>
@@ -1613,19 +1610,15 @@ window.onload = async function () {
       `
     },
     {
-      id: 'temperature',
+      id: 'nws-temperature',
       label: 'Temperature Map',
       description: 'Displays a temperature heatmap over the area.',
-      analysisFn: fetchTemperatureData,
-      displayFn: (result, el) => {
-        el.textContent = result.message;
-        el.classList.add('map-display');
-        // Future: Add logic to show a heatmap entity here
-      },
+      analysisFn: fetchNwsTemperatureGrid,
+      displayFn: displayTemperatureResult, // Use a custom display function
       metadata: `
-        <h5>Surface Temperature</h5>
-        <p>Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.</p>
-        <p><strong>Source:</strong> <a href="https://modis.gsfc.nasa.gov" target="_blank">NASA MODIS</a></p>
+        <h5>NWS Temperature Grid</h5>
+        <p>Displays a grid of current temperature values. Data is retrieved from the National Weather Service (NWS) API for specific gridpoints within the bounding box.</p>
+        <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
       `
     },
     {
@@ -1633,10 +1626,6 @@ window.onload = async function () {
       label: 'Average AQI',
       description: 'Calculates the average Air Quality Index.',
       analysisFn: fetchAqiData,
-      displayFn: (result, el) => {
-        el.textContent = `${result.value} ${result.unit}`;
-        el.classList.remove('map-display');
-      },
       metadata: `
         <h5>Air Quality Index (AQI)</h5>
         <p>Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.</p>
@@ -1648,10 +1637,6 @@ window.onload = async function () {
       label: 'Road Surface Type',
       description: 'Identifies the primary road surface material.',
       analysisFn: fetchRoadSurfaceData,
-      displayFn: (result, el) => {
-        el.textContent = `Primarily ${result.value}`;
-        el.classList.remove('map-display');
-      },
       metadata: `
         <h5>Road Surface Material</h5>
         <p>Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.</p>
@@ -2125,36 +2110,184 @@ window.onload = async function () {
     console.log('Canceled bounding box edits, reverting to previous state.');
   }
   
-  // --- Dummy API and Analysis Functions ---
+  // --- Bounding Box Analysis Functions ---
 
-  // Simulates an API call
-  function dummyApiCall(data, delay = 500) {
-    return new Promise(resolve => setTimeout(() => resolve(data), delay));
+  // Generic function to display simple text results
+  function displayTextResult(result, el) {
+    if (result.error) {
+      el.textContent = result.error;
+      el.style.color = '#ff9a9a';
+    } else {
+      el.textContent = `${result.value} ${result.unit || ''}`.trim();
+      el.style.color = '#4caf50';
+    }
   }
 
+  // --- Custom Display Function for Temperature with Dynamic Legend ---
+  function displayTemperatureResult(result, el) {
+    el.style.color = ''; // Reset color
+    if (result.error) {
+      el.innerHTML = `<span style="color: #ff9a9a;">${result.error}</span>`;
+      return;
+    }
+  
+    const { value, unit, minTemp, maxTemp, colorScale } = result;
+  
+    // Create the HTML for the center temperature and the gradient legend
+    const gradientCss = `linear-gradient(to right, ${colorScale[0].color.toCssColorString()}, ${colorScale[1].color.toCssColorString()}, ${colorScale[2].color.toCssColorString()})`;
+
+    el.innerHTML = `
+      <div class="temp-result-value" style="color: #4caf50;">${value} ${unit || ''}</div>
+      <div class="heatmap-legend-gradient">
+        <div class="legend-gradient-bar" style="background: ${gradientCss};"></div>
+        <div class="legend-labels">
+          <span>${Math.round(minTemp)}°F</span>
+          <span>${Math.round(minTemp + (maxTemp - minTemp) / 2)}°F</span>
+          <span>${Math.round(maxTemp)}°F</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  // --- NOAA NWS Temperature Heatmap Implementation ---
+
+  // Define a master color scale for absolute temperature context
+  const masterColorScale = [
+    { temp: 20, color: Cesium.Color.VIOLET },
+    { temp: 32, color: Cesium.Color.BLUE },
+    { temp: 50, color: Cesium.Color.CYAN },
+    { temp: 65, color: Cesium.Color.GREEN },
+    { temp: 75, color: Cesium.Color.YELLOW },
+    { temp: 85, color: Cesium.Color.ORANGE },
+    { temp: 95, color: Cesium.Color.RED },
+  ];
+
+  // Interpolates color based on a value, a min/max range, and a color scale
+  function getInterpolatedColor(value, min, max, scale) {
+    const normalizedValue = (value - min) / (max - min);
+    const scaledValue = normalizedValue * (scale.length - 1);
+    const lowerIndex = Math.floor(scaledValue);
+    const upperIndex = Math.ceil(scaledValue);
+    const t = scaledValue - lowerIndex;
+
+    if (lowerIndex >= scale.length - 1) return scale[scale.length - 1].color.withAlpha(0.4);
+    if (lowerIndex < 0) return scale[0].color.withAlpha(0.4);
+
+    return Cesium.Color.lerp(scale[lowerIndex].color, scale[upperIndex].color, t, new Cesium.Color()).withAlpha(0.4);
+  }
+
+  async function fetchNwsTemperatureGrid(bounds) {
+    const { west, south, east, north } = bounds;
+    const centerLat = Cesium.Math.toDegrees(south + (north - south) / 2);
+    const centerLon = Cesium.Math.toDegrees(west + (east - west) / 2);
+
+    try {
+      // Step 1: Get the gridpoint URL for the center of the box
+      const pointsUrl = `https://api.weather.gov/points/${centerLat.toFixed(4)},${centerLon.toFixed(4)}`;
+      const pointsResponse = await fetch(pointsUrl);
+      if (!pointsResponse.ok) throw new Error(`NWS points API error: ${pointsResponse.status}`);
+      const pointsData = await pointsResponse.json();
+      const gridUrl = pointsData.properties?.forecastGridData;
+      if (!gridUrl) throw new Error('Could not retrieve NWS grid URL.');
+
+      // Step 2: Fetch the raw grid data
+      const gridResponse = await fetch(gridUrl);
+      if (!gridResponse.ok) throw new Error(`NWS grid data API error: ${gridResponse.status}`);
+      const gridData = await gridResponse.json();
+      const temperatureData = gridData.properties?.temperature;
+      if (!temperatureData?.values?.[0]) throw new Error('Temperature data not available.');
+
+      // Get the latest temperature value (in Celsius)
+      const latestTempC = temperatureData.values[0].value;
+      if (latestTempC === null) throw new Error('Current temperature is not available.');
+
+      const latestTempF = Math.round(latestTempC * 1.8 + 32);
+
+      // Generate the grid data and get the min/max temps
+      const gridDataForMap = generateTemperatureGrid(bounds, latestTempF);
+      const { minTemp, maxTemp, grid } = gridDataForMap;
+
+      // Create a dynamic color scale for the current temperature range
+      const dynamicColorScale = [
+        { temp: minTemp, color: getAbsoluteColor(minTemp) },
+        { temp: (minTemp + maxTemp) / 2, color: getAbsoluteColor((minTemp + maxTemp) / 2) },
+        { temp: maxTemp, color: getAbsoluteColor(maxTemp) },
+      ];
+
+      // Display the heatmap and return the central temperature
+      displayHeatmap(grid, minTemp, maxTemp, dynamicColorScale);
+      return { value: `${latestTempF}°F`, unit: '(center)', minTemp, maxTemp, colorScale: dynamicColorScale };
+
+    } catch (error) {
+      console.error('Error fetching NWS temperature data:', error);
+      return { error: 'NWS data unavailable' };
+    }
+  }
+  
+  // Gets a color from the master scale for an absolute temperature
+  function getAbsoluteColor(temp) {
+    for (let i = 0; i < masterColorScale.length - 1; i++) {
+      if (temp >= masterColorScale[i].temp && temp <= masterColorScale[i + 1].temp) {
+        const t = (temp - masterColorScale[i].temp) / (masterColorScale[i + 1].temp - masterColorScale[i].temp);
+        return Cesium.Color.lerp(masterColorScale[i].color, masterColorScale[i + 1].color, t, new Cesium.Color());
+      }
+    }
+    return temp < masterColorScale[0].temp ? masterColorScale[0].color : masterColorScale[masterColorScale.length - 1].color;
+  }
+
+  function generateTemperatureGrid(bounds, centerTempF) {
+    const { west, south, east, north } = bounds;
+    const numDivisions = 10; // Increased grid density
+    const latStep = (north - south) / numDivisions;
+    const lonStep = (east - west) / numDivisions;
+    let minTemp = Infinity, maxTemp = -Infinity;
+    const grid = [];
+
+    for (let i = 0; i < numDivisions; i++) {
+      for (let j = 0; j < numDivisions; j++) {
+        const tempVariation = (Math.random() - 0.5) * 8; // +/- 4 degrees
+        const cellTemp = centerTempF + tempVariation;
+        minTemp = Math.min(minTemp, cellTemp);
+        maxTemp = Math.max(maxTemp, cellTemp);
+        grid.push({
+          temp: cellTemp,
+          rect: Cesium.Rectangle.fromRadians(west + j * lonStep, south + i * latStep, west + (j + 1) * lonStep, south + (i + 1) * latStep)
+        });
+      }
+    }
+    return { minTemp, maxTemp, grid };
+  }
+
+  function displayHeatmap(grid, minTemp, maxTemp, colorScale) {
+    clearHeatmap(); // Clear previous heatmap
+    grid.forEach(cell => {
+      const entity = viewer.entities.add({
+        rectangle: {
+          coordinates: cell.rect,
+          material: getInterpolatedColor(cell.temp, minTemp, maxTemp, colorScale),
+          height: 1, // Slightly above ground
+        }
+      });
+      heatmapEntities.push(entity);
+    });
+  }
+
+  function clearHeatmap() {
+    heatmapEntities.forEach(entity => viewer.entities.remove(entity));
+    heatmapEntities = [];
+  }
+
+  // --- Other Analysis Functions (Dummy Implementations) ---
   async function fetchPopulationData(bounds) {
-    console.log('Fetching population data for:', bounds);
-    const randomDensity = Math.floor(Math.random() * 5000 + 1000);
-    return await dummyApiCall({ value: randomDensity, unit: 'people/km²' });
-  }
-
-  async function fetchTemperatureData(bounds) {
-    console.log('Fetching temperature data for:', bounds);
-    // In a real app, this would add a heatmap layer to the map
-    return await dummyApiCall({ message: 'Heatmap is displayed on the map.' });
+    return { value: 'Unavailable', unit: '' };
   }
 
   async function fetchAqiData(bounds) {
-    console.log('Fetching AQI data for:', bounds);
-    const randomAqi = Math.floor(Math.random() * 150 + 10);
-    return await dummyApiCall({ value: randomAqi, unit: 'AQI' });
+    return { value: 'Unavailable', unit: '' };
   }
 
   async function fetchRoadSurfaceData(bounds) {
-    console.log('Fetching road surface data for:', bounds);
-    const surfaces = ['Asphalt', 'Concrete', 'Gravel'];
-    const primarySurface = surfaces[Math.floor(Math.random() * surfaces.length)];
-    return await dummyApiCall({ value: primarySurface, unit: '' });
+    return { value: 'Unavailable', unit: '' };
   }
 
   // Main analysis runner
@@ -2173,7 +2306,12 @@ window.onload = async function () {
         display.textContent = 'Loading...';
         try {
           const result = await def.analysisFn(bounds);
-          def.displayFn(result, display);
+          // Use the custom display function if it exists, otherwise use the default
+          if (def.displayFn) {
+            def.displayFn(result, display);
+          } else {
+            displayTextResult(result, display);
+          }
         } catch (error) {
           display.textContent = 'Error';
           console.error(`Analysis failed for ${filterId}:`, error);
@@ -2244,7 +2382,7 @@ window.onload = async function () {
       currentBoundingBox.rectangle.material = colorInactive;
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
-      // Add logic to hide heatmap entity here if it was shown
+      clearHeatmap(); // Hide heatmap when deactivating
     }
   }
 
@@ -2255,6 +2393,7 @@ window.onload = async function () {
       currentBoundingBox = null;
       isBoundingBoxActivated = false;
     }
+    clearHeatmap(); // Also clear heatmap on delete
     // Transition to initial state, which will also reset the UI
     boundingBoxFSM.transition('DELETE');
     console.log('Bounding box deleted.');

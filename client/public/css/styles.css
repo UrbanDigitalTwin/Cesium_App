@@ -392,13 +392,38 @@ html, body {
   .filter-display-result {
     font-size: 0.9em;
     font-weight: bold;
-    color: #4caf50;
-  }
-  .filter-display-result.map-display {
-    color: #2196f3;
+    color: #4caf50; /* Default success color, can be overridden */
   }
   .hidden {
     display: none !important;
+  }
+
+  /* Temperature Legend Styles */
+  .temp-result-value {
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  .heatmap-legend-gradient {
+    margin-top: 8px;
+    color: #ddd;
+  }
+  .legend-gradient-bar {
+    width: 100%;
+    height: 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  .legend-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 0.8em;
+  }
+  .legend-labels span:nth-child(2) {
+    /* Center the middle label */
+    transform: translateX(-50%);
+    left: 50%;
+    position: absolute;
   }
 
   /* Hamburger menu */
