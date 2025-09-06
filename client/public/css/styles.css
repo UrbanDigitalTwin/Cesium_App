@@ -320,9 +320,9 @@ html, body {
     padding: 15px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    overflow: hidden;
-    max-height: 500px; /* Adjust if content grows larger */
+    gap: 12px;
+    overflow-y: auto;
+    max-height: 50vh;
     transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
   }
   .bb-filter-item {
