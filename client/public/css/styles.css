@@ -330,6 +330,7 @@ html, body {
     padding: 10px;
     border-radius: 6px;
     border: 1px solid #555;
+    position: relative; /* For positioning the info popup */
   }
   .bb-filter-item.locked {
     opacity: 0.8;
@@ -341,6 +342,24 @@ html, body {
     align-items: center;
     font-weight: bold;
     color: #00aaff;
+  }
+  .bb-filter-info-btn {
+    background: #555;
+    color: #fff;
+    border: 1px solid #777;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    font-weight: bold;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    transition: background-color 0.2s;
   }
   .bb-filter-item-desc {
     font-size: 0.8em;
@@ -365,12 +384,7 @@ html, body {
   #hamburgerBtn {
     position: absolute;
     top: 24px;
-    left: 24px;
-    /* Adjustments for the new filter info popup */
-    #bbFilterInfoPopup {
-      width: calc(100% - 30px);
-      bottom: auto; /* Unset bottom positioning */
-    }
+    left: 24px;    
     z-index: 400;
     width: 44px;
     height: 44px;
@@ -1051,11 +1065,12 @@ html, body {
 .bb-info-popup {
   position: absolute;
   bottom: 100%;
-  left: 15px;
-  right: 15px;
+  left: 0;
+  right: 0;
+  margin: 0 10px 5px 10px; /* Add some margin */
   background: #444;
   border: 1px solid #666;
-  border-radius: 8px;
+  border-radius: 6px;
   padding: 15px;
   box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
   z-index: 10;
@@ -1068,6 +1083,21 @@ html, body {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
+}
+/* Overrides for dynamically positioned popups (like filter metadata) */
+#filterMetadataPopup {
+  position: fixed; /* Use fixed to position relative to viewport */
+  bottom: auto;
+  right: auto;
+  left: auto;
+  margin: 0;
+  z-index: 9999; /* Ensure it's on top of everything */
+  max-width: 320px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+}
+#filterMetadataPopup a {
+  color: #00aaff;
+  text-decoration: underline;
 }
 .bb-info-close-btn {
   position: absolute;

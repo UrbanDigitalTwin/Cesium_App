@@ -1581,9 +1581,6 @@ window.onload = async function () {
   // --- Bounding Box Filter Dialog Elements ---
   const bbFilterDialog = document.getElementById('bbFilterDialog');
   const bbFilterToggleBtn = document.getElementById('bbFilterToggleBtn');
-  const bbFilterInfoPopup = document.getElementById('bbFilterInfoPopup');
-  const bbFilterInfoContent = document.getElementById('bbFilterInfoContent');
-  const bbFilterInfoCloseBtn = document.getElementById('bbFilterInfoCloseBtn');
   const filterState = {};
 
   // Define colors for different states
@@ -1602,12 +1599,11 @@ window.onload = async function () {
         el.textContent = `~${result.value} ${result.unit}`;
         el.classList.remove('map-display');
       },
-      metadata: {
-        title: 'Population Density',
-        source: 'WorldPop',
-        link: 'https://www.worldpop.org',
-        description: 'Provides estimates of population density based on satellite imagery and census data. Updated annually.'
-      }
+      metadata: `
+        <h5>Population Density</h5>
+        <p>Provides estimates of population density based on satellite imagery and census data. Updated annually.</p>
+        <p><strong>Source:</strong> <a href="https://www.worldpop.org" target="_blank">WorldPop</a></p>
+      `
     },
     {
       id: 'temperature',
@@ -1619,12 +1615,11 @@ window.onload = async function () {
         el.classList.add('map-display');
         // Future: Add logic to show a heatmap entity here
       },
-      metadata: {
-        title: 'Surface Temperature',
-        source: 'NASA MODIS',
-        link: 'https://modis.gsfc.nasa.gov',
-        description: 'Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.'
-      }
+      metadata: `
+        <h5>Surface Temperature</h5>
+        <p>Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.</p>
+        <p><strong>Source:</strong> <a href="https://modis.gsfc.nasa.gov" target="_blank">NASA MODIS</a></p>
+      `
     },
     {
       id: 'aqi',
@@ -1635,12 +1630,11 @@ window.onload = async function () {
         el.textContent = `${result.value} ${result.unit}`;
         el.classList.remove('map-display');
       },
-      metadata: {
-        title: 'Air Quality Index (AQI)',
-        source: 'OpenAQ Platform',
-        link: 'https://openaq.org',
-        description: 'Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.'
-      }
+      metadata: `
+        <h5>Air Quality Index (AQI)</h5>
+        <p>Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.</p>
+        <p><strong>Source:</strong> <a href="https://openaq.org" target="_blank">OpenAQ Platform</a></p>
+      `
     },
     {
       id: 'road-surface',
@@ -1651,12 +1645,11 @@ window.onload = async function () {
         el.textContent = `Primarily ${result.value}`;
         el.classList.remove('map-display');
       },
-      metadata: {
-        title: 'Road Surface Material',
-        source: 'OpenStreetMap (OSM)',
-        link: 'https://www.openstreetmap.org',
-        description: 'Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.'
-      }
+      metadata: `
+        <h5>Road Surface Material</h5>
+        <p>Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.</p>
+        <p><strong>Source:</strong> <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap (OSM)</a></p>
+      `
     }
   ];
   
@@ -2005,29 +1998,51 @@ window.onload = async function () {
     };
   }
 
-  function handleFilterInfoClick(e) {
-    bbInfoPopup.classList.remove('visible'); // Hide other popup
-    const filterId = e.target.dataset.info;
-    const def = filterDefinitions.find(d => d.id === filterId);
-    if (!def) return;
+  // Close popup when clicking outside of it
+  document.addEventListener('click', function(event) {
+    const popup = document.getElementById('filterMetadataPopup');
+    if (popup && !popup.contains(event.target) && !event.target.matches('.bb-filter-info-btn')) {
+      popup.remove();
+    }
+  });
 
-    const data = def.metadata;
-    bbFilterInfoContent.innerHTML = `
-      <h5>${data.title}</h5>
-      <p>${data.description}</p>
-      <p><strong>Source:</strong> <a href="${data.link}" target="_blank">${data.source}</a></p>
+  function showFilterMetadataPopup(filterId) {
+    // Remove any existing popups first to avoid duplicates
+    const existingPopup = document.getElementById('filterMetadataPopup');
+    if (existingPopup) existingPopup.remove();
+  
+    const filterDefinition = filterDefinitions.find(def => def.id === filterId);
+    if (!filterDefinition) return;
+  
+    const infoBtnElement = document.querySelector(`.bb-filter-item[data-filter-id="${filterId}"] .bb-filter-info-btn`);
+    if (!infoBtnElement) return;
+  
+    // Create the popup dynamically
+    const popup = document.createElement('div');
+    popup.id = 'filterMetadataPopup';
+    popup.className = 'bb-info-popup visible';
+  
+    popup.innerHTML = `
+      <button class="bb-info-close-btn" onclick="this.parentElement.remove()">&times;</button>
+      <div class="bb-info-section">${filterDefinition.metadata}</div>
     `;
-
-    const btnRect = e.target.getBoundingClientRect();
-    const sidebarRect = document.getElementById('sidebar').getBoundingClientRect();
-    bbFilterInfoPopup.style.top = `${btnRect.top - sidebarRect.top}px`;
-    bbFilterInfoPopup.classList.add('visible');
+    
+    document.body.appendChild(popup);
+  
+    // Position the popup relative to the button, ensuring it stays in the viewport
+    const btnRect = infoBtnElement.getBoundingClientRect();
+    const popupRect = popup.getBoundingClientRect();
+    const margin = 10; // 10px margin from screen edges
+  
+    let top = btnRect.top - popupRect.height - margin;
+    // If not enough space above, show below
+    if (top < margin) {
+      top = btnRect.bottom + margin;
+    }
+  
+    popup.style.top = `${top}px`;
+    popup.style.left = `${btnRect.left}px`;
   }
-
-  if (bbFilterInfoCloseBtn) {
-    bbFilterInfoCloseBtn.onclick = () => bbFilterInfoPopup.classList.remove('visible');
-  }
-
   function initializeFilterDialog() {
     const filterContent = document.getElementById('bbFilterContent');
     if (!filterContent) return;
@@ -2041,11 +2056,11 @@ window.onload = async function () {
       item.innerHTML = `
         <div class="bb-filter-item-header">
           <label for="filter-${def.id}-checkbox">${def.label}</label>
-          <button class="bb-info-btn filter-info-btn" data-info="${def.id}">i</button>
+          <button class="bb-filter-info-btn" title="Show metadata for ${def.label}">i</button>
         </div>
         <p class="bb-filter-item-desc">${def.description}</p>
         <div class="bb-filter-control">
-          <input type="checkbox" id="filter-${def.id}-checkbox" class="filter-checkbox">
+          <input type="checkbox" id="filter-${def.id}-checkbox" class="filter-checkbox" />
           <div class="filter-display-result hidden"></div>
         </div>
       `;
@@ -2055,8 +2070,11 @@ window.onload = async function () {
       filterState[def.id] = checkbox.checked;
       checkbox.addEventListener('change', (e) => { filterState[def.id] = e.target.checked; });
 
-      const infoBtn = item.querySelector('.filter-info-btn');
-      infoBtn.addEventListener('click', handleFilterInfoClick);
+      const infoBtn = item.querySelector('.bb-filter-info-btn');
+      infoBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent other click events
+        showFilterMetadataPopup(def.id);
+      });
     });
   }
 
