@@ -263,11 +263,109 @@ html, body {
     background: #1976d2;
     color: #fff;
   }
+
+  /* Bounding Box Filter Dialog */
+  .bb-filter-dialog {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    width: 100%;
+    background: #444;
+    border: 1px solid #666;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    box-shadow: 0 -4px 15px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    transition: all 0.3s ease;
+  }
+  .bb-filter-dialog.hidden {
+    display: none;
+  }
+  .bb-filter-dialog.minimized .bb-filter-content {
+    display: none;
+  }
+  .bb-filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: #555;
+    border-bottom: 1px solid #666;
+  }
+  .bb-filter-header h4 {
+    margin: 0;
+    font-size: 1em;
+    color: #fff;
+    font-weight: 600;
+  }
+  .bb-filter-toggle-btn {
+    background: #666;
+    border: 1px solid #888;
+    color: #fff;
+    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .bb-filter-content {
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .bb-filter-item {
+    background: #3a3a3a;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #555;
+  }
+  .bb-filter-item.locked {
+    opacity: 0.8;
+    background: #333;
+  }
+  .bb-filter-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    color: #00aaff;
+  }
+  .bb-filter-item-desc {
+    font-size: 0.8em;
+    color: #ccc;
+    margin: 4px 0 8px 0;
+  }
+  .bb-filter-control .filter-checkbox {
+    accent-color: #00aaff;
+    cursor: pointer;
+    transform: scale(1.1);
+    margin-right: 5px;
+  }
+  .bb-filter-control .filter-display-result {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #4caf50;
+  }
+  .bb-filter-control .filter-display-result.map-display {
+    color: #2196f3;
+  }
   /* Hamburger menu */
   #hamburgerBtn {
     position: absolute;
     top: 24px;
     left: 24px;
+    /* Adjustments for the new filter info popup */
+    #bbFilterInfoPopup {
+      width: calc(100% - 30px);
+      bottom: auto; /* Unset bottom positioning */
+    }
     z-index: 400;
     width: 44px;
     height: 44px;

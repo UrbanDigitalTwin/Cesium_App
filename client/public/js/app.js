@@ -1578,6 +1578,16 @@ window.onload = async function () {
   const bbTitle = document.querySelector('.bounding-box-text');
   const bbDescription = document.querySelector('.bounding-box-description');
 
+  // --- Bounding Box Filter Dialog Elements ---
+  const bbFilterDialog = document.getElementById('bbFilterDialog');
+  const bbFilterToggleBtn = document.getElementById('bbFilterToggleBtn');
+  const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
+  const filterInfoButtons = document.querySelectorAll('.filter-info-btn');
+  const bbFilterInfoPopup = document.getElementById('bbFilterInfoPopup');
+  const bbFilterInfoContent = document.getElementById('bbFilterInfoContent');
+  const bbFilterInfoCloseBtn = document.getElementById('bbFilterInfoCloseBtn');
+  const filterState = {};
+
   // Define colors for different states
   const colorCreating = Cesium.Color.YELLOW.withAlpha(0.5);
   const colorInactive = new Cesium.Color(0.8, 0.2, 0.2, 0.3); // Dark pleasant red
@@ -1729,6 +1739,7 @@ window.onload = async function () {
   }
 
   function finalizeBoundingBox() {
+    bbFilterDialog.classList.remove('hidden'); // Show the filter dialog
     document.removeEventListener('keydown', escapeKeyListener);
     if (boundingBoxHandler) {
       boundingBoxHandler.destroy();
@@ -1762,6 +1773,7 @@ window.onload = async function () {
   }
 
   function handleCancelBoundingBox() {
+    bbFilterDialog.classList.add('hidden'); // Hide the filter dialog
     viewer.scene.screenSpaceCameraController.enableInputs = true; // Re-enable map controls
     document.removeEventListener('keydown', escapeKeyListener);
     if (boundingBoxHandler) {
@@ -1800,27 +1812,128 @@ window.onload = async function () {
     console.log('Canceled bounding box edits, reverting to previous state.');
   }
   
-  function handleActivateBoundingBox() {
+  // --- Dummy API and Analysis Functions ---
+
+  // Simulates an API call
+  function dummyApiCall(data, delay = 500) {
+    return new Promise(resolve => setTimeout(() => resolve(data), delay));
+  }
+
+  async function fetchPopulationData(bounds) {
+    console.log('Fetching population data for:', bounds);
+    const randomDensity = Math.floor(Math.random() * 5000 + 1000);
+    return await dummyApiCall({ value: randomDensity, unit: 'people/km²' });
+  }
+
+  async function fetchTemperatureData(bounds) {
+    console.log('Fetching temperature data for:', bounds);
+    // In a real app, this would add a heatmap layer to the map
+    return await dummyApiCall({ message: 'Heatmap is displayed on the map.' });
+  }
+
+  async function fetchAqiData(bounds) {
+    console.log('Fetching AQI data for:', bounds);
+    const randomAqi = Math.floor(Math.random() * 150 + 10);
+    return await dummyApiCall({ value: randomAqi, unit: 'AQI' });
+  }
+
+  async function fetchRoadSurfaceData(bounds) {
+    console.log('Fetching road surface data for:', bounds);
+    const surfaces = ['Asphalt', 'Concrete', 'Gravel'];
+    const primarySurface = surfaces[Math.floor(Math.random() * surfaces.length)];
+    return await dummyApiCall({ value: primarySurface, unit: '' });
+  }
+
+  // Main analysis runner
+  async function runBoundingBoxAnalysis() {
+    if (!currentBoundingBox) return;
+    const bounds = currentBoundingBox.rectangle.coordinates.getValue();
+
+    for (const filterId in filterState) {
+      const item = document.querySelector(`.bb-filter-item[data-filter-id="${filterId}"]`);
+      const display = item.querySelector('.filter-display-result');
+
+      if (filterState[filterId]) { // If filter is checked
+        display.textContent = 'Loading...';
+        let result;
+        try {
+          switch (filterId) {
+            case 'population':
+              result = await fetchPopulationData(bounds);
+              display.textContent = `~${result.value} ${result.unit}`;
+              display.classList.remove('map-display');
+              break;
+            case 'temperature':
+              result = await fetchTemperatureData(bounds);
+              display.textContent = result.message;
+              display.classList.add('map-display');
+              // Add logic to show a heatmap entity here
+              break;
+            case 'aqi':
+              result = await fetchAqiData(bounds);
+              display.textContent = `${result.value} ${result.unit}`;
+              display.classList.remove('map-display');
+              break;
+            case 'road-surface':
+              result = await fetchRoadSurfaceData(bounds);
+              display.textContent = `Primarily ${result.value}`;
+              display.classList.remove('map-display');
+              break;
+          }
+        } catch (error) {
+          display.textContent = 'Error';
+          console.error(`Analysis failed for ${filterId}:`, error);
+        }
+      }
+    }
+  }
+
+  async function handleActivateBoundingBox() {
     if (!currentBoundingBox) return;
 
     // Toggle the activation state
     isBoundingBoxActivated = !isBoundingBoxActivated;
+
+    // Update filter UI based on activation state
+    const filterItems = document.querySelectorAll('.bb-filter-item');
+    filterItems.forEach(item => {
+      const checkbox = item.querySelector('.filter-checkbox');
+      const display = item.querySelector('.filter-display-result');
+
+      if (isBoundingBoxActivated) {
+        item.classList.add('locked');
+        checkbox.classList.add('hidden');
+        checkbox.disabled = true;
+        display.classList.remove('hidden');
+        display.textContent = filterState[item.dataset.filterId] ? 'Pending...' : 'Not applied';
+      } else {
+        item.classList.remove('locked');
+        checkbox.classList.remove('hidden');
+        checkbox.disabled = false;
+        display.classList.add('hidden');
+        display.textContent = ''; // Clear old results
+      }
+    });
+
 
     if (isBoundingBoxActivated) {
       // Change appearance to "activated"
       currentBoundingBox.rectangle.material = colorActive;
       currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
       console.log('Bounding box activated.');
+      await runBoundingBoxAnalysis(); // Run the (dummy) API calls
     } else {
       // Change appearance back to default "active" but not "activated"
       currentBoundingBox.rectangle.material = colorInactive;
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
+      // Add logic to hide heatmap entity here if it was shown
     }
     updateBoundingBoxUI('active'); // Refresh the UI to update the button text
   }
 
   function handleDeleteBoundingBox() {
+    bbFilterDialog.classList.add('hidden'); // Hide the filter dialog
     if (currentBoundingBox) {
       viewer.entities.remove(currentBoundingBox);
       currentBoundingBox = null;
@@ -1846,4 +1959,66 @@ window.onload = async function () {
       bbInfoPopup.classList.remove('visible');
     };
   }
+
+  // --- Filter Metadata Popup Logic ---
+  const metadata = {
+    population: {
+      title: 'Population Density',
+      source: 'WorldPop',
+      link: 'https://www.worldpop.org',
+      description: 'Provides estimates of population density based on satellite imagery and census data. Updated annually.'
+    },
+    temperature: {
+      title: 'Surface Temperature',
+      source: 'NASA MODIS',
+      link: 'https://modis.gsfc.nasa.gov',
+      description: 'Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.'
+    },
+    aqi: {
+      title: 'Air Quality Index (AQI)',
+      source: 'OpenAQ Platform',
+      link: 'https://openaq.org',
+      description: 'Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.'
+    },
+    'road-surface': {
+      title: 'Road Surface Material',
+      source: 'OpenStreetMap (OSM)',
+      link: 'https://www.openstreetmap.org',
+      description: 'Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.'
+    }
+  };
+
+  filterInfoButtons.forEach(button => {
+    button.addEventListener('click', (e) => {
+      const filterId = e.target.dataset.info;
+      const data = metadata[filterId];
+      bbFilterInfoContent.innerHTML = `
+        <h5>${data.title}</h5>
+        <p>${data.description}</p>
+        <p><strong>Source:</strong> <a href="${data.link}" target="_blank">${data.source}</a></p>
+      `;
+      bbFilterInfoPopup.classList.add('visible');
+    });
+  });
+
+  if (bbFilterInfoCloseBtn) {
+    bbFilterInfoCloseBtn.onclick = () => bbFilterInfoPopup.classList.remove('visible');
+  }
+
+  // --- Bounding Box Filter Dialog Logic ---
+  if (bbFilterToggleBtn) {
+    bbFilterToggleBtn.onclick = function() {
+      const isMinimized = bbFilterDialog.classList.toggle('minimized');
+      this.textContent = isMinimized ? '+' : '-';
+      this.title = isMinimized ? 'Restore' : 'Minimize';
+    };
+  }
+
+  filterCheckboxes.forEach(checkbox => {
+    const filterId = checkbox.closest('.bb-filter-item').dataset.filterId;
+    filterState[filterId] = checkbox.checked; // Initialize state
+    checkbox.addEventListener('change', (e) => {
+      filterState[filterId] = e.target.checked;
+    });
+  });
 };
