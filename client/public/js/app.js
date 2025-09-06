@@ -1828,6 +1828,21 @@ window.onload = async function () {
       }
     });
 
+    // Pad the rectangle slightly to zoom out a bit
+    const zoomOutFactor = 0.2; // 20% padding
+    const paddedRect = Cesium.Rectangle.clone(rect);
+    paddedRect.west -= rect.width * zoomOutFactor;
+    paddedRect.east += rect.width * zoomOutFactor;
+    paddedRect.south -= rect.height * zoomOutFactor;
+    paddedRect.north += rect.height * zoomOutFactor;
+
+    // Animate camera to focus on the new bounding box
+    viewer.camera.flyTo({
+      // Use the padded rectangle for camera destination to zoom out slightly
+      destination: paddedRect,
+      duration: 1.5 // Animation duration in seconds
+    });
+
     console.log('Bounding box finalized:', rect);
     updateBoundingBoxUI('active');
   }
