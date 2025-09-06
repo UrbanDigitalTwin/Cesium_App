@@ -2030,19 +2030,154 @@ window.onload = async function () {
   }
   
   // --- NOAA NWS API and Heatmap Functions ---
-  let temperatureGridEntity = null;
+  let temperatureHeatmapEntity = null;
+  let temperatureAnalysisRunning = false;
 
-  // Function to get a color based on temperature in Celsius
-  function getTemperatureColor(tempC) {
-    if (tempC <= 0) return Cesium.Color.BLUE.withAlpha(0.5);
-    if (tempC <= 10) return Cesium.Color.AQUAMARINE.withAlpha(0.5);
-    if (tempC <= 20) return Cesium.Color.GREENYELLOW.withAlpha(0.5);
-    if (tempC <= 25) return Cesium.Color.YELLOW.withAlpha(0.5);
-    if (tempC <= 30) return Cesium.Color.ORANGE.withAlpha(0.5);
-    if (tempC <= 35) return Cesium.Color.RED.withAlpha(0.5);
-    return Cesium.Color.MAGENTA.withAlpha(0.5);
+  /**
+   * Creates a color gradient from blue to red for the heatmap.
+   * @returns {Array<[number, number, number]>} An array of 256 RGB color values.
+   */
+  function createColorGradient() {
+    const colors = [];
+    // Blue -> Cyan -> Green -> Yellow -> Red gradient
+    const colorStops = [
+        { stop: 0,    color: [0, 0, 255] },    // Blue
+        { stop: 0.4,  color: [0, 255, 255] },  // Cyan
+        { stop: 0.6,  color: [0, 255, 0] },    // Green
+        { stop: 0.8,  color: [255, 255, 0] },  // Yellow
+        { stop: 1,    color: [255, 0, 0] }    // Red
+    ];
+
+    for (let i = 0; i < 256; i++) {
+        const position = i / 255;
+        let startStop, endStop;
+        for (let j = 0; j < colorStops.length - 1; j++) {
+            if (position >= colorStops[j].stop && position <= colorStops[j+1].stop) {
+                startStop = colorStops[j];
+                endStop = colorStops[j+1];
+                break;
+            }
+        }
+
+        const t = (position - startStop.stop) / (endStop.stop - startStop.stop);
+        const r = Math.round(startStop.color[0] + t * (endStop.color[0] - startStop.color[0]));
+        const g = Math.round(startStop.color[1] + t * (endStop.color[1] - startStop.color[1]));
+        const b = Math.round(startStop.color[2] + t * (endStop.color[2] - startStop.color[2]));
+        colors.push([r, g, b]);
+    }
+    return colors;
   }
 
+  /**
+   * Generates a heatmap canvas from a set of data points.
+   * This uses a simple gradient method inspired by heatmap.js.
+   * @param {number} width The width of the canvas.
+   * @param {number} height The height of the canvas.
+   * @param {Array<{x: number, y: number, value: number}>} points The data points to plot (coordinates and values are normalized 0-1).
+   * @param {number} radius The radius of each point's influence.
+   * @returns {HTMLCanvasElement} The generated heatmap canvas.
+   */
+  function createHeatmapCanvas(width, height, points, radius) {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      // 1. Create a grayscale intensity map using radial gradients
+      points.forEach(point => {
+          const x = point.x * width;
+          const y = point.y * height;
+
+          const r = radius;
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+          // The alpha of the gradient is determined by the point's value
+          gradient.addColorStop(0, `rgba(0, 0, 0, ${point.value})`);
+          gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+          ctx.fillStyle = gradient;
+          ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      });
+
+      // 2. Colorize the map based on the intensity (alpha)
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const data = imageData.data;
+      const gradientColors = createColorGradient();
+
+      for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i + 3]; // Intensity is in the alpha channel
+          if (alpha > 0) {
+              const color = gradientColors[alpha];
+              data[i] = color[0];     // R
+              data[i + 1] = color[1]; // G
+              data[i + 2] = color[2]; // B
+              // Make it more opaque for better visibility
+              data[i + 3] = Math.min(255, alpha + 100);
+          }
+      }
+      ctx.putImageData(imageData, 0, 0);
+
+      return canvas;
+  }
+
+  /**
+   * Renders a temperature heatmap on the map within the given bounds.
+   * @param {Cesium.Rectangle} bounds The bounding box for the heatmap.
+   * @param {Array<{lon: number, lat: number, value: number}>} dataPoints The temperature data.
+   */
+  function renderTemperatureHeatmap(bounds, dataPoints) {
+      if (dataPoints.length === 0) return;
+
+      // Find min/max for normalization
+      const temps = dataPoints.map(p => p.value);
+      const minTemp = Math.min(...temps);
+      const maxTemp = Math.max(...temps);
+      const tempRange = maxTemp - minTemp;
+
+      // Get the number of points per side to calculate dynamic blur
+      const pointsPerSide = Math.sqrt(dataPoints.length);
+
+      // Normalize data and map to canvas coordinates
+      const canvasWidth = 150;
+      const canvasHeight = 150;
+      const { west, south, east, north } = bounds;
+      const lonRange = east - west;
+      const latRange = north - south;
+
+      const canvasPoints = dataPoints.map(p => {
+          return {
+              x: (Cesium.Math.toRadians(p.lon) - west) / lonRange,
+              y: (north - Cesium.Math.toRadians(p.lat)) / latRange,
+              // Normalize, handle single point case by setting value to mid-range
+              value: tempRange > 0 ? (p.value - minTemp) / tempRange : 0.5
+          };
+      });
+
+      // Dynamically adjust radius for more blur on smaller grids
+      // A smaller grid (e.g., 2x2) gets a larger radius to appear more continuous.
+      // A larger grid (e.g., 16x16) gets a smaller radius.
+      // The radius is increased significantly to ensure a very smooth blend.
+      const radius = 15 + (16 - pointsPerSide) * 5;
+      const heatmapCanvas = createHeatmapCanvas(canvasWidth, canvasHeight, canvasPoints, radius);
+
+      // Create Cesium entity
+      if (temperatureHeatmapEntity) {
+          viewer.entities.remove(temperatureHeatmapEntity);
+      }
+
+      temperatureHeatmapEntity = viewer.entities.add({
+          rectangle: {
+              coordinates: bounds,
+              material: new Cesium.ImageMaterialProperty({
+                  image: heatmapCanvas,
+                  transparent: true
+              }),
+              height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+              heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+              outline: true,
+              outlineColor: Cesium.Color.WHITE.withAlpha(0.3)
+          }
+      });
+  }
   /**
    * Calculates the appropriate height for the heatmap rectangle based on camera altitude.
    * This prevents z-fighting with the 3D tileset when zoomed out.
@@ -2054,12 +2189,12 @@ window.onload = async function () {
     const cameraHeight = viewer.camera.positionCartographic.height;
 
     // Define camera altitude range for scaling
-    const minCameraHeight = 1500;  // Below this, height is fixed
-    const maxCameraHeight = 80000; // Above this, height is fixed
+    const minCameraHeight = 1000;  // Start scaling up sooner
+    const maxCameraHeight = 100000; // Continue scaling for longer
 
     // Define corresponding rectangle height range
-    const minRectangleHeight = 20;   // Height when zoomed in
-    const maxRectangleHeight = 600; // Height when zoomed out
+    const minRectangleHeight = 50;   // Increased minimum height when zoomed in
+    const maxRectangleHeight = 2000; // Significantly increased maximum height for far zoom
 
     if (cameraHeight <= minCameraHeight) {
       return minRectangleHeight;
@@ -2073,59 +2208,127 @@ window.onload = async function () {
     return Cesium.Math.lerp(minRectangleHeight, maxRectangleHeight, t);
   }
 
-  async function fetchTemperatureData(bounds) {
-    // Get the center of the bounding box
-    const center = Cesium.Rectangle.center(bounds);
-    const centerLon = Cesium.Math.toDegrees(center.longitude);
-    const centerLat = Cesium.Math.toDegrees(center.latitude);
+  /**
+   * Creates a grid of points within a given bounding box.
+   * The density of the grid is determined dynamically by the size of the box.
+   * @param {Cesium.Rectangle} bounds The bounding box.
+   * @returns {Array<{lon: number, lat: number}>} An array of longitude/latitude points.
+   */
+  function createPointGrid(bounds) {
+    // Define min/max points per side
+    const minPoints = 2;
+    const maxPoints = 16;
 
-    try {
-      // 1. Get the gridpoint URL from the NWS API
-      const pointsUrl = `https://api.weather.gov/points/${centerLat.toFixed(4)},${centerLon.toFixed(4)}`;
-      const pointsResponse = await fetch(pointsUrl);
-      if (!pointsResponse.ok) throw new Error(`NWS points API error: ${pointsResponse.status}`);
-      const pointsData = await pointsResponse.json();
+    // Define min/max diagonal distance of the bounding box in meters
+    const minDistance = 10000; // 10 km
+    const maxDistance = 4000000; // 4000 km (approx. width of continental US)
 
-      const gridUrl = pointsData.properties.forecastGridData;
-      if (!gridUrl) throw new Error('Could not retrieve grid data URL.');
+    // Calculate the diagonal distance of the bounding box
+    const sw = Cesium.Cartesian3.fromRadians(bounds.west, bounds.south);
+    const ne = Cesium.Cartesian3.fromRadians(bounds.east, bounds.north);
+    const diagonalDistance = Cesium.Cartesian3.distance(sw, ne);
 
-      // 2. Get the grid data (which includes temperature)
-      const gridResponse = await fetch(gridUrl);
-      if (!gridResponse.ok) throw new Error(`NWS grid data API error: ${gridResponse.status}`);
-      const gridData = await gridResponse.json();
+    // Clamp the distance to our defined range
+    const clampedDistance = Cesium.Math.clamp(diagonalDistance, minDistance, maxDistance);
 
-      // 3. Extract the current temperature and grid geometry
-      const temperatureData = gridData.properties.temperature;
-      const currentTemperatureC = temperatureData.values[0].value; // First value is the most current
+    // Use an inverted exponential function to determine point density.
+    // This creates a dense grid for small boxes (more detail when zoomed in)
+    // and a sparser grid for large boxes (better performance for large areas).
+    const t = (clampedDistance - minDistance) / (maxDistance - minDistance);
+    const pointsPerSide = Math.round(Cesium.Math.lerp(maxPoints, minPoints, t));
 
-      if (currentTemperatureC === null) {
-        throw new Error('Temperature data not available for this location.');
+    const { west, south, east, north } = bounds;
+    const points = [];
+    const lonStep = pointsPerSide > 1 ? (east - west) / (pointsPerSide - 1) : 0;
+    const latStep = pointsPerSide > 1 ? (north - south) / (pointsPerSide - 1) : 0;
+
+    for (let i = 0; i < pointsPerSide; i++) {
+      for (let j = 0; j < pointsPerSide; j++) {
+        points.push({
+          lon: Cesium.Math.toDegrees(west + (j * lonStep)),
+          lat: Cesium.Math.toDegrees(south + (i * latStep))
+        });
       }
+    }
+    return points;
+  }
 
-      // 4. Create a polygon entity that matches the user's bounding box
-      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
+  function clearTemperatureGrid() {
+    if (temperatureHeatmapEntity) {
+      viewer.entities.remove(temperatureHeatmapEntity);
+      temperatureHeatmapEntity = null;
+    }
+  }
 
-      temperatureGridEntity = viewer.entities.add({
-        rectangle: {
-          coordinates: bounds, // Use the user's bounding box directly
-          material: getTemperatureColor(currentTemperatureC),
-          outline: true,
-          outlineColor: Cesium.Color.WHITE.withAlpha(0.7),
-          height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
-          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
-        },
-      });
+  async function fetchTemperatureData(bounds) {
+    if (temperatureAnalysisRunning) {
+      return { message: 'Analysis already in progress.' };
+    }
+    temperatureAnalysisRunning = true;
+    clearTemperatureGrid();
 
+    // Create a grid with density based on the bounding box size
+    const gridPoints = createPointGrid(bounds);
+    let pointsProcessed = 0;
+    const temperatureDataPoints = [];
+
+    const promises = gridPoints.map(async (point) => {
+      try {
+        // 1. Get the gridpoint URL from the NWS API for each point
+        const pointsUrl = `https://api.weather.gov/points/${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
+        const pointsResponse = await fetch(pointsUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } });
+        if (!pointsResponse.ok) {
+          console.warn(`NWS points API failed for ${point.lat},${point.lon}: ${pointsResponse.status}`);
+          return; // Skip this point
+        }
+        const pointsData = await pointsResponse.json();
+        const gridUrl = pointsData.properties.forecastGridData;
+
+        if (!gridUrl) return;
+
+        // 2. Get the grid data
+        const gridResponse = await fetch(gridUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } });
+        if (!gridResponse.ok) return;
+        const gridData = await gridResponse.json();
+
+        // 3. Extract the current temperature
+        const temperatureData = gridData.properties.temperature;
+        const currentTemperatureC = temperatureData.values[0].value;
+
+        if (currentTemperatureC !== null) {
+          temperatureDataPoints.push({
+            lon: point.lon,
+            lat: point.lat,
+            value: currentTemperatureC
+          });
+        }
+      } catch (error) {
+        console.error(`Failed to fetch temp for point ${point.lat},${point.lon}:`, error);
+      } finally {
+        pointsProcessed++;
+        // Update the UI with progress if needed
+        const item = document.querySelector(`.bb-filter-item[data-filter-id="temperature"]`);
+        if (item) {
+          const display = item.querySelector('.filter-display-result');
+          display.textContent = `Loading... (${pointsProcessed}/${gridPoints.length})`;
+        }
+      }
+    });
+
+    await Promise.all(promises);
+    temperatureAnalysisRunning = false;
+
+    if (temperatureDataPoints.length > 0) {
+      renderTemperatureHeatmap(bounds, temperatureDataPoints);
+
+      const totalTemp = temperatureDataPoints.reduce((sum, p) => sum + p.value, 0);
+      const avgTemp = totalTemp / temperatureDataPoints.length;
       return {
-        message: `Heatmap displayed. Current temp: ${currentTemperatureC.toFixed(1)}°C`,
-        value: currentTemperatureC
+        message: `Heatmap displayed. Avg Temp: ${avgTemp.toFixed(1)}°C`,
+        value: avgTemp
       };
-
-    } catch (error) {
-      console.error('Failed to fetch temperature data:', error);
-      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
-      temperatureGridEntity = null;
-      return { message: `Error: ${error.message}` };
+    } else {
+      return { message: 'Error: No temperature data found for this area.' };
     }
   }
 
@@ -2133,15 +2336,15 @@ window.onload = async function () {
   const filterDefinitions = [
     {
       id: 'temperature',
-      label: 'Temperature Map',
-      description: 'Displays a temperature heatmap over the area from NOAA NWS.',
+      label: 'Temperature Grid',
+      description: 'Displays a 5x5 grid of temperature points from NOAA NWS.',
       analysisFn: fetchTemperatureData,
       displayFn: (result, el) => {
         el.textContent = result.message;
         el.classList.add('map-display');
       },
       metadata: `
-        <h5>Surface Temperature</h5>
+        <h5>Surface Temperature Grid</h5>
         <p>Gridded temperature data provided by the National Weather Service (NWS) API. This is not satellite LST, but forecast grid data.</p>
         <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
       `
@@ -2235,8 +2438,7 @@ window.onload = async function () {
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
       // Add logic to hide heatmap entity here if it was shown
-      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
-      temperatureGridEntity = null;
+      clearTemperatureGrid();
     }
     updateBoundingBoxUI('active'); // Refresh the UI to update the button text
   }
@@ -2247,8 +2449,7 @@ window.onload = async function () {
       viewer.entities.remove(currentBoundingBox);
       currentBoundingBox = null;
       isBoundingBoxActivated = false;
-      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
-      temperatureGridEntity = null;
+      clearTemperatureGrid();
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
