@@ -1594,71 +1594,6 @@ window.onload = async function () {
   const colorInactive = new Cesium.Color(0.8, 0.2, 0.2, 0.3); // Dark pleasant red
   const colorActive = Cesium.Color.CYAN.withAlpha(0.3);
 
-  // --- Dynamic Filter Definitions ---
-  const filterDefinitions = [
-    {
-      id: 'population',
-      label: 'Population Density',
-      description: 'Average population within the selected area.',
-      analysisFn: fetchPopulationData,
-      displayFn: (result, el) => {
-        el.textContent = `~${result.value} ${result.unit}`;
-        el.classList.remove('map-display');
-      },
-      metadata: `
-        <h5>Population Density</h5>
-        <p>Provides estimates of population density based on satellite imagery and census data. Updated annually.</p>
-        <p><strong>Source:</strong> <a href="https://www.worldpop.org" target="_blank">WorldPop</a></p>
-      `
-    },
-    {
-      id: 'temperature',
-      label: 'Temperature Map',
-      description: 'Displays a temperature heatmap over the area.',
-      analysisFn: fetchTemperatureData,
-      displayFn: (result, el) => {
-        el.textContent = result.message;
-        el.classList.add('map-display');
-        // Future: Add logic to show a heatmap entity here
-      },
-      metadata: `
-        <h5>Surface Temperature</h5>
-        <p>Land Surface Temperature (LST) data collected from the MODIS instrument on the Terra and Aqua satellites.</p>
-        <p><strong>Source:</strong> <a href="https://modis.gsfc.nasa.gov" target="_blank">NASA MODIS</a></p>
-      `
-    },
-    {
-      id: 'aqi',
-      label: 'Average AQI',
-      description: 'Calculates the average Air Quality Index.',
-      analysisFn: fetchAqiData,
-      displayFn: (result, el) => {
-        el.textContent = `${result.value} ${result.unit}`;
-        el.classList.remove('map-display');
-      },
-      metadata: `
-        <h5>Air Quality Index (AQI)</h5>
-        <p>Aggregates real-time and historical air quality data from public data sources provided by governments, research institutions, and citizen scientists.</p>
-        <p><strong>Source:</strong> <a href="https://openaq.org" target="_blank">OpenAQ Platform</a></p>
-      `
-    },
-    {
-      id: 'road-surface',
-      label: 'Road Surface Type',
-      description: 'Identifies the primary road surface material.',
-      analysisFn: fetchRoadSurfaceData,
-      displayFn: (result, el) => {
-        el.textContent = `Primarily ${result.value}`;
-        el.classList.remove('map-display');
-      },
-      metadata: `
-        <h5>Road Surface Material</h5>
-        <p>Data is derived from the "surface" tag on ways in the OpenStreetMap database, a collaborative mapping project.</p>
-        <p><strong>Source:</strong> <a href="https://www.openstreetmap.org" target="_blank">OpenStreetMap (OSM)</a></p>
-      `
-    }
-  ];
-  
   function updateBoundingBoxUI(newState) {
     boundingBoxState = newState;
 
@@ -1785,7 +1720,8 @@ window.onload = async function () {
             return Cesium.Rectangle.fromCartesianArray([startPosition, startPosition]);
           }, false),
           material: colorCreating,
-          height: 0
+          height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND
         }
       });
     }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
@@ -1840,7 +1776,8 @@ window.onload = async function () {
       rectangle: {
         coordinates: rect,
         material: colorInactive,
-        height: 0,
+        height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+        heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
         outline: true,
         outlineColor: colorInactive.withAlpha(1.0),
         outlineWidth: 2
@@ -2092,45 +2029,132 @@ window.onload = async function () {
     console.log('Canceled bounding box edits, reverting to previous state.');
   }
   
-  // --- Dummy API and Analysis Functions ---
+  // --- NOAA NWS API and Heatmap Functions ---
+  let temperatureGridEntity = null;
 
-  // Simulates an API call
-  function dummyApiCall(data, delay = 500) {
-    return new Promise(resolve => setTimeout(() => resolve(data), delay));
+  // Function to get a color based on temperature in Celsius
+  function getTemperatureColor(tempC) {
+    if (tempC <= 0) return Cesium.Color.BLUE.withAlpha(0.5);
+    if (tempC <= 10) return Cesium.Color.AQUAMARINE.withAlpha(0.5);
+    if (tempC <= 20) return Cesium.Color.GREENYELLOW.withAlpha(0.5);
+    if (tempC <= 25) return Cesium.Color.YELLOW.withAlpha(0.5);
+    if (tempC <= 30) return Cesium.Color.ORANGE.withAlpha(0.5);
+    if (tempC <= 35) return Cesium.Color.RED.withAlpha(0.5);
+    return Cesium.Color.MAGENTA.withAlpha(0.5);
   }
 
-  async function fetchPopulationData(bounds) {
-    console.log('Fetching population data for:', bounds);
-    const randomDensity = Math.floor(Math.random() * 5000 + 1000);
-    return await dummyApiCall({ value: randomDensity, unit: 'people/km²' });
+  /**
+   * Calculates the appropriate height for the heatmap rectangle based on camera altitude.
+   * This prevents z-fighting with the 3D tileset when zoomed out.
+   * @returns {number} The calculated height in meters.
+   */
+  function getDynamicHeatmapHeight() {
+    if (!viewer) return 20; // Default height if viewer isn't ready
+
+    const cameraHeight = viewer.camera.positionCartographic.height;
+
+    // Define camera altitude range for scaling
+    const minCameraHeight = 1500;  // Below this, height is fixed
+    const maxCameraHeight = 80000; // Above this, height is fixed
+
+    // Define corresponding rectangle height range
+    const minRectangleHeight = 20;   // Height when zoomed in
+    const maxRectangleHeight = 600; // Height when zoomed out
+
+    if (cameraHeight <= minCameraHeight) {
+      return minRectangleHeight;
+    }
+    if (cameraHeight >= maxCameraHeight) {
+      return maxRectangleHeight;
+    }
+
+    // Linearly interpolate the rectangle height based on the camera's altitude
+    const t = (cameraHeight - minCameraHeight) / (maxCameraHeight - minCameraHeight);
+    return Cesium.Math.lerp(minRectangleHeight, maxRectangleHeight, t);
   }
 
   async function fetchTemperatureData(bounds) {
-    console.log('Fetching temperature data for:', bounds);
-    // In a real app, this would add a heatmap layer to the map
-    return await dummyApiCall({ message: 'Heatmap is displayed on the map.' });
+    // Get the center of the bounding box
+    const center = Cesium.Rectangle.center(bounds);
+    const centerLon = Cesium.Math.toDegrees(center.longitude);
+    const centerLat = Cesium.Math.toDegrees(center.latitude);
+
+    try {
+      // 1. Get the gridpoint URL from the NWS API
+      const pointsUrl = `https://api.weather.gov/points/${centerLat.toFixed(4)},${centerLon.toFixed(4)}`;
+      const pointsResponse = await fetch(pointsUrl);
+      if (!pointsResponse.ok) throw new Error(`NWS points API error: ${pointsResponse.status}`);
+      const pointsData = await pointsResponse.json();
+
+      const gridUrl = pointsData.properties.forecastGridData;
+      if (!gridUrl) throw new Error('Could not retrieve grid data URL.');
+
+      // 2. Get the grid data (which includes temperature)
+      const gridResponse = await fetch(gridUrl);
+      if (!gridResponse.ok) throw new Error(`NWS grid data API error: ${gridResponse.status}`);
+      const gridData = await gridResponse.json();
+
+      // 3. Extract the current temperature and grid geometry
+      const temperatureData = gridData.properties.temperature;
+      const currentTemperatureC = temperatureData.values[0].value; // First value is the most current
+
+      if (currentTemperatureC === null) {
+        throw new Error('Temperature data not available for this location.');
+      }
+
+      // 4. Create a polygon entity that matches the user's bounding box
+      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
+
+      temperatureGridEntity = viewer.entities.add({
+        rectangle: {
+          coordinates: bounds, // Use the user's bounding box directly
+          material: getTemperatureColor(currentTemperatureC),
+          outline: true,
+          outlineColor: Cesium.Color.WHITE.withAlpha(0.7),
+          height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+          heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+        },
+      });
+
+      return {
+        message: `Heatmap displayed. Current temp: ${currentTemperatureC.toFixed(1)}°C`,
+        value: currentTemperatureC
+      };
+
+    } catch (error) {
+      console.error('Failed to fetch temperature data:', error);
+      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
+      temperatureGridEntity = null;
+      return { message: `Error: ${error.message}` };
+    }
   }
 
-  async function fetchAqiData(bounds) {
-    console.log('Fetching AQI data for:', bounds);
-    const randomAqi = Math.floor(Math.random() * 150 + 10);
-    return await dummyApiCall({ value: randomAqi, unit: 'AQI' });
-  }
-
-  async function fetchRoadSurfaceData(bounds) {
-    console.log('Fetching road surface data for:', bounds);
-    const surfaces = ['Asphalt', 'Concrete', 'Gravel'];
-    const primarySurface = surfaces[Math.floor(Math.random() * surfaces.length)];
-    return await dummyApiCall({ value: primarySurface, unit: '' });
-  }
+  // --- Dynamic Filter Definitions (Updated) ---
+  const filterDefinitions = [
+    {
+      id: 'temperature',
+      label: 'Temperature Map',
+      description: 'Displays a temperature heatmap over the area from NOAA NWS.',
+      analysisFn: fetchTemperatureData,
+      displayFn: (result, el) => {
+        el.textContent = result.message;
+        el.classList.add('map-display');
+      },
+      metadata: `
+        <h5>Surface Temperature</h5>
+        <p>Gridded temperature data provided by the National Weather Service (NWS) API. This is not satellite LST, but forecast grid data.</p>
+        <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
+      `
+    }
+  ];
 
   // Main analysis runner
   async function runBoundingBoxAnalysis() {
     if (!currentBoundingBox) return;
     const bounds = currentBoundingBox.rectangle.coordinates.getValue();
 
-    for (const filterId in filterState) {      
-      if (filterState[filterId]) { // If filter is checked        
+    for (const filterId in filterState) {
+      if (filterState[filterId]) { // If filter is checked
         const def = filterDefinitions.find(d => d.id === filterId);
         if (!def || !def.analysisFn) continue;
 
@@ -2211,6 +2235,8 @@ window.onload = async function () {
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
       // Add logic to hide heatmap entity here if it was shown
+      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
+      temperatureGridEntity = null;
     }
     updateBoundingBoxUI('active'); // Refresh the UI to update the button text
   }
@@ -2221,6 +2247,8 @@ window.onload = async function () {
       viewer.entities.remove(currentBoundingBox);
       currentBoundingBox = null;
       isBoundingBoxActivated = false;
+      if (temperatureGridEntity) viewer.entities.remove(temperatureGridEntity);
+      temperatureGridEntity = null;
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
