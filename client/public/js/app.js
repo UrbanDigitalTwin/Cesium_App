@@ -23,6 +23,10 @@ window.onload = async function () {
   let emEventEntities = [];
   let emEventsVisible = false;
 
+  // --- Bounding Box Variables ---
+  let boundingBoxState = 'initial'; // States: 'initial', 'creating', 'active', 'editing'
+  let currentBoundingBox = null;
+  let boundingBoxHandler = null;
   let tempBoundingBox = null;
   let boundingBoxCoordinates = [];
   let isBoundingBoxActivated = false;
@@ -32,11 +36,6 @@ window.onload = async function () {
   let draggedHandle = null;
   let isDraggingHandle = false;
   let cameraPanRequest = null;
-  // --- Bounding Box Variables ---
-  let currentBoundingBox = null;
-  let boundingBoxHandler = null;
-
-
 
   // Function to fetch and process camera data
   async function fetchAndProcessCameras() {
@@ -1660,129 +1659,94 @@ window.onload = async function () {
     }
   ];
   
-  const boundingBoxFSM = {
-    currentState: 'initial',
-    states: {
-      initial: {
-        onEnter: () => {
-          bbTitle.textContent = 'Bounding Box';
-          bbDescription.textContent = 'Draw and manage analysis areas on the map.';
-          boundingBoxUI.className = 'bounding-box-ui state-initial';
-          bbCreateBtn.textContent = 'Create';
-          bbCreateBtn.disabled = false;
-          bbEditBtn.disabled = true;
-          bbActivateBtn.disabled = true;
-          bbDeleteBtn.disabled = true;
-          bbActivateBtn.removeAttribute('title');
-        },
-        transitions: { CREATE: 'creating' }
-      },
-      creating: {
-        onEnter: () => {
-          bbTitle.textContent = 'Drawing Bounding Box...';
-          bbDescription.textContent = 'Click and drag to draw. Right-click or press Esc to cancel.';
-          boundingBoxUI.className = 'bounding-box-ui state-creating';
-          bbCreateBtn.textContent = 'Cancel';
-        },
-        transitions: { FINALIZE: 'inactive', CANCEL: 'initial' }
-      },
-      inactive: {
-        onEnter: () => {
-          bbTitle.textContent = 'Bounding Box Set';
-          bbDescription.textContent = 'Box is ready. You can now edit, activate, or delete it.';
-          boundingBoxUI.className = 'bounding-box-ui state-inactive';
-          bbCreateBtn.disabled = true;
-          bbEditBtn.disabled = false;
-          bbDeleteBtn.disabled = false;
-          bbActivateBtn.textContent = 'Activate';
-          
-          const anyFilterSelected = Object.values(filterState).some(v => v);
-          bbActivateBtn.disabled = !anyFilterSelected;
-          bbActivateBtn.title = anyFilterSelected ? '' : 'Enable one or more filters to query';
-        },
-        transitions: { ACTIVATE: 'activated', EDIT: 'editing', DELETE: 'initial' }
-      },
-      activated: {
-        onEnter: () => {
-          bbTitle.textContent = 'Bounding Box Active';
-          bbDescription.textContent = 'Box is active. Filtering or analysis can be performed.';
-          boundingBoxUI.className = 'bounding-box-ui state-active';
-          bbCreateBtn.disabled = true;
-          bbEditBtn.disabled = true; // Cannot edit while active
-          bbDeleteBtn.disabled = false;
-          bbActivateBtn.disabled = false;
-          bbActivateBtn.textContent = 'Deactivate';
-          bbActivateBtn.removeAttribute('title');
-        },
-        transitions: { DEACTIVATE: 'inactive', DELETE: 'initial' }
-      },
-      editing: {
-        onEnter: () => {
-          bbTitle.textContent = 'Editing Bounding Box';
-          bbDescription.textContent = 'Adjust the corners of the box. Click Save when done.';
-          boundingBoxUI.className = 'bounding-box-ui state-creating'; // Use same color as creating
-          bbCreateBtn.textContent = 'Save';
-          bbCreateBtn.disabled = false;
-          bbEditBtn.textContent = 'Cancel';
-          bbEditBtn.disabled = false;
-          bbActivateBtn.disabled = true;
-          bbDeleteBtn.disabled = true;
-        },
-        onExit: () => {
-          bbEditBtn.textContent = 'Edit'; // Reset on exit
-        },
-        transitions: { SAVE: 'inactive', CANCEL: 'inactive' }
-      }
-    },
+  function updateBoundingBoxUI(newState) {
+    boundingBoxState = newState;
 
-    transition(action) {
-      const nextStateName = this.states[this.currentState]?.transitions?.[action];
-      if (nextStateName) {
-        console.log(`[FSM] Transitioning from ${this.currentState} to ${nextStateName} via ${action}`);
-        
-        const currentStateDef = this.states[this.currentState];
-        if (currentStateDef.onExit) {
-          currentStateDef.onExit();
+    // Reset all buttons to a default state
+    bbCreateBtn.textContent = 'Create';
+    bbTitle.textContent = 'Bounding Box';
+    bbDescription.textContent = 'Draw and manage analysis areas on the map.';
+    boundingBoxUI.className = 'bounding-box-ui'; // Reset class
+
+    bbCreateBtn.disabled = false;
+    bbEditBtn.disabled = true;
+    bbActivateBtn.disabled = true;
+    bbDeleteBtn.disabled = true;
+
+    // Reset title attribute for activate button
+    bbActivateBtn.removeAttribute('title');
+
+
+    switch (boundingBoxState) {
+      case 'initial':
+        boundingBoxUI.classList.add('state-initial');
+        break;
+      case 'creating':
+        bbCreateBtn.textContent = 'Cancel';
+        bbTitle.textContent = 'Drawing Bounding Box...';
+        bbDescription.textContent = 'Click and drag to draw. Right-click or press Esc to cancel.';
+        boundingBoxUI.classList.add('state-creating');
+        break;
+      case 'active':
+        bbCreateBtn.disabled = true;
+        bbEditBtn.disabled = false;
+        bbActivateBtn.disabled = false;
+        bbDeleteBtn.disabled = false;
+
+        // Check if any filter is selected
+        const anyFilterSelected = Object.values(filterState).some(v => v);
+        if (!anyFilterSelected) {
+          bbActivateBtn.disabled = true;
+          bbActivateBtn.title = 'Enable one or more filters to query';
         }
 
-        this.currentState = nextStateName;
-        this.states[this.currentState].onEnter();
-      } else {
-        console.warn(`[FSM] Invalid transition: ${action} from state ${this.currentState}`);
-      }
-    },
-
-    // Helper to sync UI if external factors change (e.g., filter selection)
-    refresh() {
-      if (this.states[this.currentState]?.onEnter) {
-        this.states[this.currentState].onEnter();
-      }
+        if (isBoundingBoxActivated) {
+          bbActivateBtn.textContent = 'Deactivate';
+          bbTitle.textContent = 'Bounding Box Active';
+          bbDescription.textContent = 'Box is active. Filtering or analysis can be performed.';
+          boundingBoxUI.classList.add('state-active');
+        } else {
+          bbActivateBtn.textContent = 'Activate';
+          bbTitle.textContent = 'Bounding Box Set';
+          bbDescription.textContent = 'Box is ready. You can now edit, activate, or delete it.';
+          boundingBoxUI.classList.add('state-inactive');
+        }
+        break;
+      case 'editing':
+        bbCreateBtn.textContent = 'Save';
+        bbCreateBtn.disabled = false;
+        bbEditBtn.textContent = 'Cancel';
+        bbTitle.textContent = 'Editing Bounding Box';
+        bbDescription.textContent = 'Adjust the corners of the box. Click Save when done.';
+        boundingBoxUI.classList.add('state-creating'); // Use same color as creating
+        bbEditBtn.disabled = false;
+        bbActivateBtn.disabled = true;
+        bbDeleteBtn.disabled = true;
+        break;
     }
-  };
+  }
 
   bbCreateBtn.onclick = () => {
-    const state = boundingBoxFSM.currentState;
-    if (state === 'initial') handleCreateBoundingBox();
-    else if (state === 'creating') handleCancelBoundingBox();
-    else if (state === 'editing') handleSaveBoundingBox();
+    if (boundingBoxState === 'initial') handleCreateBoundingBox();
+    else if (boundingBoxState === 'creating') handleCancelBoundingBox();
+    else if (boundingBoxState === 'editing') handleSaveBoundingBox();
   };
   bbEditBtn.onclick = () => {
-    const state = boundingBoxFSM.currentState;
-    if (state === 'inactive') handleEditBoundingBox();
-    else if (state === 'editing') handleCancelEdit();
+    if (boundingBoxState === 'active') handleEditBoundingBox();
+    else if (boundingBoxState === 'editing') handleCancelEdit();
   };
   bbActivateBtn.onclick = handleActivateBoundingBox;
   bbDeleteBtn.onclick = handleDeleteBoundingBox;
 
   // Listener for the Escape key to cancel drawing
   const escapeKeyListener = (event) => {
-    if (event.key === 'Escape' && boundingBoxFSM.currentState === 'creating') {
+    if (event.key === 'Escape') {
         handleCancelBoundingBox();
     }
   };
 
   function handleCreateBoundingBox() {
-    boundingBoxFSM.transition('CREATE');
+    updateBoundingBoxUI('creating');
     console.log('Starting bounding box creation...');
     viewer.canvas.style.cursor = 'crosshair';
 
@@ -1899,7 +1863,7 @@ window.onload = async function () {
     });
 
     console.log('Bounding box finalized:', rect);
-    boundingBoxFSM.transition('FINALIZE');
+    updateBoundingBoxUI('active');
   }
 
   function handleCancelBoundingBox() {
@@ -1917,7 +1881,7 @@ window.onload = async function () {
     }
     boundingBoxCoordinates = [];
     isBoundingBoxActivated = false;
-    boundingBoxFSM.transition('CANCEL');
+    updateBoundingBoxUI('initial');
     console.log('Canceled bounding box creation.');
   }
 
@@ -1987,7 +1951,8 @@ window.onload = async function () {
 
   function handleEditBoundingBox() {
     if (!currentBoundingBox) return;
-    boundingBoxFSM.transition('EDIT');
+    updateBoundingBoxUI('editing');
+    bbEditBtn.textContent = 'Cancel';
     let activeRectangle = null;
 
     // Store original state for cancellation
@@ -2102,7 +2067,8 @@ window.onload = async function () {
     }
     originalBoundingBoxCartesians = null;
 
-    boundingBoxFSM.transition('SAVE');
+    bbEditBtn.textContent = 'Edit';
+    updateBoundingBoxUI('active');
     console.log('Saved bounding box edits.');
   }
 
@@ -2121,7 +2087,8 @@ window.onload = async function () {
     }
     originalBoundingBoxCartesians = null;
 
-    boundingBoxFSM.transition('CANCEL');
+    bbEditBtn.textContent = 'Edit';
+    updateBoundingBoxUI('active');
     console.log('Canceled bounding box edits, reverting to previous state.');
   }
   
@@ -2187,7 +2154,6 @@ window.onload = async function () {
 
     // Toggle the activation state
     isBoundingBoxActivated = !isBoundingBoxActivated;
-    boundingBoxFSM.transition(isBoundingBoxActivated ? 'ACTIVATE' : 'DEACTIVATE');
 
     const filterItems = document.querySelectorAll('.bb-filter-item');
     filterItems.forEach(item => {
@@ -2246,6 +2212,7 @@ window.onload = async function () {
       console.log('Bounding box deactivated.');
       // Add logic to hide heatmap entity here if it was shown
     }
+    updateBoundingBoxUI('active'); // Refresh the UI to update the button text
   }
 
   function handleDeleteBoundingBox() {
@@ -2255,8 +2222,7 @@ window.onload = async function () {
       currentBoundingBox = null;
       isBoundingBoxActivated = false;
     }
-    // Transition to initial state, which will also reset the UI
-    boundingBoxFSM.transition('DELETE');
+    updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
   }
 
@@ -2357,7 +2323,7 @@ window.onload = async function () {
       filterState[def.id] = checkbox.checked;
       checkbox.addEventListener('change', (e) => { 
         filterState[def.id] = e.target.checked;
-        boundingBoxFSM.refresh(); // Re-evaluate button states
+        updateBoundingBoxUI(boundingBoxState); // Re-evaluate button states
       });
 
       const infoBtn = item.querySelector('.bb-filter-info-btn');
@@ -2378,5 +2344,5 @@ window.onload = async function () {
 
   // Initial setup calls
   initializeFilterDialog();
-  boundingBoxFSM.transition('initial'); // Set initial state
+  updateBoundingBoxUI('initial');
 };
