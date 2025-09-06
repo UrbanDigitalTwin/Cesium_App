@@ -2034,6 +2034,24 @@ window.onload = async function () {
   let temperatureAnalysisRunning = false;
 
   /**
+   * Fetches a resource with a specified timeout.
+   * @param {string} resource The URL to fetch.
+   * @param {object} options Fetch options.
+   * @param {number} timeout The timeout in milliseconds.
+   * @returns {Promise<Response>} A promise that resolves with the response.
+   */
+  async function fetchWithTimeout(resource, options = {}, timeout = 8000) {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+  
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal  
+    });
+    clearTimeout(id);
+    return response;
+  }
+  /**
    * Creates a color gradient from blue to red for the heatmap.
    * @returns {Array<[number, number, number]>} An array of 256 RGB color values.
    */
@@ -2276,7 +2294,7 @@ window.onload = async function () {
       try {
         // 1. Get the gridpoint URL from the NWS API for each point
         const pointsUrl = `https://api.weather.gov/points/${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
-        const pointsResponse = await fetch(pointsUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } });
+        const pointsResponse = await fetchWithTimeout(pointsUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } }, 7000);
         if (!pointsResponse.ok) {
           console.warn(`NWS points API failed for ${point.lat},${point.lon}: ${pointsResponse.status}`);
           return; // Skip this point
@@ -2287,7 +2305,7 @@ window.onload = async function () {
         if (!gridUrl) return;
 
         // 2. Get the grid data
-        const gridResponse = await fetch(gridUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } });
+        const gridResponse = await fetchWithTimeout(gridUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } }, 7000);
         if (!gridResponse.ok) return;
         const gridData = await gridResponse.json();
 
@@ -2303,6 +2321,9 @@ window.onload = async function () {
           });
         }
       } catch (error) {
+        if (error.name === 'AbortError') {
+          console.warn(`Request timed out for point ${point.lat},${point.lon}`);
+        }
         console.error(`Failed to fetch temp for point ${point.lat},${point.lon}:`, error);
       } finally {
         pointsProcessed++;
