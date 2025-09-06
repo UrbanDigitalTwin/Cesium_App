@@ -399,6 +399,54 @@ html, body {
     color: #2196f3;
   }
   .hidden {
+  display: none !important;
+}
+
+/* --- Heatmap Legend Styles --- */
+/* This allows the filter result container to hold complex HTML like the legend */
+.map-display {
+  display: block !important;
+  text-align: left !important;
+  padding: 8px;
+  background-color: #4a4a4a;
+  border-radius: 4px;
+  border: 1px solid #666;
+  color: #eee;
+}
+
+.map-display-message {
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #4caf50;
+}
+
+.heatmap-legend {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.legend-gradient {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(to right, #0000ff, #00ffff, #00ff00, #ffff00, #ff0000);
+  border: 1px solid #777;
+}
+
+.legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #ccc;
+  margin-top: 4px;
+  padding: 0 2px;
+}
+
+/* Styles for the static temperature legend */
+.static-legend .legend-labels span {
+  flex: 1 1 0;
+  text-align: center;
+}
+.hidden {
     display: none !important;
   }
 
