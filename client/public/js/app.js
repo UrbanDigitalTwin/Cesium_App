@@ -2233,27 +2233,31 @@ window.onload = async function () {
    * @returns {Array<{lon: number, lat: number}>} An array of longitude/latitude points.
    */
   function createPointGrid(bounds) {
-    // Define min/max points per side
-    const minPoints = 2;
-    const maxPoints = 16;
+    const minPointsPerSide = 5;  // For small boxes (< 50 sq mi)
+    const maxPointsPerSide = 16; // For large boxes (> 1000 sq mi)
 
-    // Define min/max diagonal distance of the bounding box in meters
-    const minDistance = 10000; // 10 km
-    const maxDistance = 4000000; // 4000 km (approx. width of continental US)
+    // Area thresholds in square miles
+    const minAreaThreshold = 1000;
+    const maxAreaThreshold = 100000;
 
-    // Calculate the diagonal distance of the bounding box
-    const sw = Cesium.Cartesian3.fromRadians(bounds.west, bounds.south);
-    const ne = Cesium.Cartesian3.fromRadians(bounds.east, bounds.north);
-    const diagonalDistance = Cesium.Cartesian3.distance(sw, ne);
+    // Calculate the approximate area of the rectangle in square miles
+    const R = Cesium.Ellipsoid.WGS84.maximumRadius; // Earth radius in meters
+    const metersPerMile = 1609.34;
+    const sqMetersPerSqMile = metersPerMile * metersPerMile;
 
-    // Clamp the distance to our defined range
-    const clampedDistance = Cesium.Math.clamp(diagonalDistance, minDistance, maxDistance);
+    const areaMeters2 = (bounds.east - bounds.west) * (R * R) * Math.abs(Math.sin(bounds.north) - Math.sin(bounds.south));
+    const areaMiles2 = areaMeters2 / sqMetersPerSqMile;
 
-    // Use an inverted exponential function to determine point density.
-    // This creates a dense grid for small boxes (more detail when zoomed in)
-    // and a sparser grid for large boxes (better performance for large areas).
-    const t = (clampedDistance - minDistance) / (maxDistance - minDistance);
-    const pointsPerSide = Math.round(Cesium.Math.lerp(maxPoints, minPoints, t));
+    let pointsPerSide;
+    if (areaMiles2 <= minAreaThreshold) {
+      pointsPerSide = minPointsPerSide;
+    } else if (areaMiles2 >= maxAreaThreshold) {
+      pointsPerSide = maxPointsPerSide;
+    } else {
+      // Linearly interpolate the number of points between the thresholds
+      const t = (areaMiles2 - minAreaThreshold) / (maxAreaThreshold - minAreaThreshold);
+      pointsPerSide = Math.round(Cesium.Math.lerp(minPointsPerSide, maxPointsPerSide, t));
+    }
 
     const { west, south, east, north } = bounds;
     const points = [];
