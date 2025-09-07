@@ -37,6 +37,10 @@ window.onload = async function () {
   let isDraggingHandle = false;
   let cameraPanRequest = null;
 
+  // --- Weather Alerts Variables ---
+  let weatherAlertEntities = [];
+  let weatherAlertsVisible = false;
+
   // fetch and process camera data
   async function fetchAndProcessCameras() {
     try {
@@ -2012,6 +2016,7 @@ window.onload = async function () {
       currentBoundingBox.rectangle.material = colorInactive;
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       clearTemperatureGrid(); // Clear old analysis results
+      clearWeatherAlerts();
     }
     originalBoundingBoxCartesians = null;
 
@@ -2354,6 +2359,15 @@ window.onload = async function () {
       temperatureHeatmapEntity = null;
     }
   }
+  
+  function clearWeatherAlerts() {
+    weatherAlertEntities.forEach(entity => {
+      if (viewer.entities.contains(entity)) {
+        viewer.entities.remove(entity);
+      }
+    });
+    weatherAlertEntities = [];
+  }
 
   async function fetchTemperatureData(bounds) {
     if (temperatureAnalysisRunning) {
@@ -2434,6 +2448,111 @@ window.onload = async function () {
   }
 
   /**
+   * Fetches active weather alerts from the NWS API for the center of the bounding box.
+   * @param {Cesium.Rectangle} bounds The bounding box for the analysis.
+   * @returns {Promise<object>} An object containing the list of alerts or an error message.
+   */
+  async function fetchWeatherAlerts(bounds) {
+    clearWeatherAlerts(); // Clear previous alerts
+    const center = Cesium.Rectangle.center(bounds);
+    const centerLat = Cesium.Math.toDegrees(center.latitude);
+    const centerLon = Cesium.Math.toDegrees(center.longitude);
+
+    const url = `https://api.weather.gov/alerts/active?point=${centerLat.toFixed(4)},${centerLon.toFixed(4)}`;
+
+    try {
+      const response = await fetchWithTimeout(url, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } }, 10000);
+      if (!response.ok) {
+        return { message: `NWS Alerts API Error: ${response.status}` };
+      }
+      const data = await response.json();
+      const alerts = data.features || [];
+
+      if (alerts.length === 0) {
+        return { message: 'No active weather alerts for this area.', alerts: [] };
+      }
+
+      // Process and return alerts
+      const processedAlerts = alerts.map(alert => {
+        const props = alert.properties;
+        return {
+          id: props.id,
+          event: props.event,
+          headline: props.headline,
+          severity: props.severity,
+          areaDesc: props.areaDesc,
+          geometry: alert.geometry // Keep geometry for plotting
+        };
+      });
+
+      return { alerts: processedAlerts };
+
+    } catch (error) {
+      console.error('Failed to fetch weather alerts:', error);
+      return { message: 'Error fetching weather alerts.' };
+    }
+  }
+
+  /**
+   * Renders weather alert points on the map.
+   * @param {Array<object>} alerts The array of processed alert objects.
+   */
+  function renderWeatherAlerts(alerts) {
+    if (!alerts || alerts.length === 0) return;
+
+    alerts.forEach(alert => {
+      if (!alert.geometry || !alert.geometry.coordinates) return;
+
+      // Use the first coordinate of the first polygon as the point location.
+      // This is a simplification; a centroid would be more accurate for complex shapes.
+      const firstCoord = alert.geometry.coordinates[0][0];
+      const lon = firstCoord[0];
+      const lat = firstCoord[1];
+
+      let color;
+      switch (alert.severity?.toLowerCase()) {
+        case 'extreme':
+        case 'severe':
+          color = Cesium.Color.RED;
+          break;
+        case 'moderate':
+          color = Cesium.Color.ORANGE;
+          break;
+        case 'minor':
+          color = Cesium.Color.YELLOW;
+          break;
+        default:
+          color = Cesium.Color.LIGHTGRAY;
+      }
+
+      const entity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 100), // Elevate slightly
+        point: {
+          pixelSize: 12,
+          color: color,
+          outlineColor: Cesium.Color.BLACK,
+          outlineWidth: 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        properties: {
+          isWeatherAlert: true,
+          ...alert
+        }
+      });
+      weatherAlertEntities.push(entity);
+    });
+  }
+
+  function getAlertColor(severity) {
+    switch (severity?.toLowerCase()) {
+      case 'extreme': case 'severe': return '#ff4d4d'; // Red
+      case 'moderate': return '#ffa500'; // Orange
+      case 'minor': return '#ffc107'; // Yellow
+      default: return '#cccccc'; // Gray
+    }
+  }
+
+  /**
    * Updates the opacity of the temperature heatmap entity.
    * @param {number} opacity The new opacity value (0.0 to 1.0).
    * @param {boolean} [updateSlider=false] Whether to also update the slider's visual position.
@@ -2490,7 +2609,7 @@ window.onload = async function () {
       description: "Fetches surface temperature data from NOAA's NWS API and displays a heatmap.",
       analysisFn: async (bounds) => {
         // This wrapper ensures we can pass min/max to the display function
-        const result = await fetchTemperatureData(bounds);
+        const result = await fetchTemperatureData(bounds); // This is correct
         return result;
       },
       displayFn: (result, el) => {
@@ -2582,6 +2701,41 @@ window.onload = async function () {
       metadata: `
         <h5>Surface Temperature Heatmap</h5>
         <p>Gridded temperature data provided by the National Weather Service (NWS) API. This is not satellite LST, but forecast grid data.</p>
+        <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
+      `
+    },
+    {
+      id: 'weather-alerts',
+      label: 'Weather Alerts',
+      description: "Fetches active weather watches and warnings from the NWS API for the selected area.",
+      analysisFn: fetchWeatherAlerts,
+      displayFn: (result, el) => {
+        if (result.alerts && result.alerts.length > 0) {
+          const alertsHtml = result.alerts.map(alert => `
+            <div class="weather-alert-item">
+              <span class="weather-alert-dot" style="background-color: ${getAlertColor(alert.severity)};"></span>
+              <div class="weather-alert-text">
+                <strong class="weather-alert-event">${alert.event}</strong>
+                <p class="weather-alert-headline">${alert.headline}</p>
+              </div>
+            </div>
+          `).join('');
+          el.innerHTML = `<div class="weather-alert-list">${alertsHtml}</div>`;
+          renderWeatherAlerts(result.alerts); // Render points on the map
+        } else {
+          el.textContent = result.message || 'No alerts found.';
+        }
+        el.classList.add('map-display');
+      },
+      postRenderFn: () => {
+        // No post-render actions needed for this filter yet
+      },
+      metadata: `
+        <h5>Active Weather Alerts</h5>
+        <p>
+          Displays active weather alerts (watches, warnings, advisories) issued by the National Weather Service.
+          Data is queried for the center point of the bounding box. A colored dot is placed on the map for each alert.
+        </p>
         <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
       `
     }
@@ -2688,6 +2842,7 @@ window.onload = async function () {
       currentBoundingBox.rectangle.material = colorInactive;
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
+      clearWeatherAlerts();
       clearTemperatureGrid();
     }
     updateBoundingBoxUI('active'); // Refresh the UI to update the button text
@@ -2700,6 +2855,7 @@ window.onload = async function () {
       currentBoundingBox = null;
       isBoundingBoxActivated = false;
       clearTemperatureGrid();
+      clearWeatherAlerts();
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
