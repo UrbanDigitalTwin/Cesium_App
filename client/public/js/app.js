@@ -2719,14 +2719,6 @@ window.onload = async function () {
     };
   }
 
-  // Close popup when clicking outside of it
-  document.addEventListener('click', function(event) {
-    const popup = document.getElementById('filterMetadataPopup');
-    if (popup && !popup.contains(event.target) && !event.target.matches('.bb-filter-info-btn')) {
-      popup.remove();
-    }
-  });
-
   function showFilterMetadataPopup(filterId) {
     // Remove any existing popups first to avoid duplicates
     const existingPopup = document.getElementById('filterMetadataPopup');
