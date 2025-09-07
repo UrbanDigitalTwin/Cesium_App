@@ -441,14 +441,69 @@ html, body {
   padding: 0 2px;
 }
 
-/* Styles for the static temperature legend */
-.static-legend .legend-labels span {
+.dynamic-legend .legend-labels span {
   flex: 1 1 0;
   text-align: center;
 }
-.hidden {
-    display: none !important;
-  }
+
+/* --- Dynamic Heatmap Legend Styles --- */
+.dynamic-legend {
+  width: 100%;
+}
+.legend-top-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+.legend-avg-label {
+  text-align: center;
+}
+.legend-max-label {
+  text-align: right;
+}
+.legend-gradient-container {
+  position: relative;
+  height: 12px; /* Match gradient height */
+  margin-bottom: 4px;
+}
+.legend-range-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.25);
+  border-left: 1px solid rgba(255, 255, 255, 0.7);
+  border-right: 1px solid rgba(255, 255, 255, 0.7);
+  box-sizing: border-box;
+}
+.legend-out-of-range-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: rgba(80, 80, 80, 0.6);
+  box-sizing: border-box;
+}
+.legend-marker-bar {
+  position: absolute;
+  top: -2px; /* Extend slightly above */
+  bottom: -2px; /* Extend slightly below */
+  width: 2px;
+  transform: translateX(-50%);
+  background-color: #fff;
+  box-shadow: 0 0 3px rgba(0,0,0,0.8);
+}
+.min-marker, .max-marker {
+  background-color: #f0f0f0;
+}
+.legend-avg-line {
+  width: 2px;
+  height: 12px; /* Same as gradient height */
+  background-color: #fff;
+  box-shadow: 0 0 2px rgba(0,0,0,0.7);
+}
 
   /* Hamburger menu */
   #hamburgerBtn {

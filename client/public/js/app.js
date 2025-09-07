@@ -2038,6 +2038,29 @@ window.onload = async function () {
   const HEATMAP_MAX_TEMP_F = 110;
   const HEATMAP_TEMP_RANGE_F = HEATMAP_MAX_TEMP_F - HEATMAP_MIN_TEMP_F;
 
+  /**
+   * Gets the RGB color from the heatmap gradient for a given temperature.
+   * @param {number} tempF The temperature in Fahrenheit.
+   * @returns {string} A CSS 'rgb(r,g,b)' color string.
+   */
+  function getColorForTemperature(tempF) {
+    const position = (tempF - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F;
+    const clampedPosition = Math.max(0, Math.min(1, position));
+    
+    // This logic mirrors the createColorGradient function to find the correct color.
+    const colorStops = [
+      { stop: 0,    color: [0, 0, 255] },    // Blue
+      { stop: 0.25, color: [0, 255, 255] },  // Cyan
+      { stop: 0.5,  color: [0, 255, 0] },    // Green
+      { stop: 0.75, color: [255, 255, 0] },  // Yellow
+      { stop: 1,    color: [255, 0, 0] }     // Red
+    ];
+
+    const colorIndex = Math.floor(clampedPosition * 255);
+    const gradientColors = createColorGradient(); // This function already exists and generates the 256 colors
+    const [r, g, b] = gradientColors[colorIndex];
+    return `rgb(${r}, ${g}, ${b})`;
+  }
 
   /**
    * Fetches a resource with a specified timeout.
@@ -2375,10 +2398,39 @@ window.onload = async function () {
         return result;
       },
       displayFn: (result, el) => {
-        if (result.value !== undefined) {
+        if (result.value !== undefined && result.minTemp !== undefined && result.maxTemp !== undefined) {
+          const avgTemp = result.value;
+          const minTemp = result.minTemp;
+          const maxTemp = result.maxTemp;
+          
+          // Calculate the positions of all markers and the range (0% to 100%)
+          const avgPosition = ((avgTemp - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F) * 100;
+          const minPosition = ((minTemp - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F) * 100;
+          const maxPosition = ((maxTemp - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F) * 100;
+
+          const clampedAvgPosition = Math.max(0, Math.min(100, avgPosition));
+          const clampedMinPosition = Math.max(0, Math.min(100, minPosition));
+          const clampedMaxPosition = Math.max(0, Math.min(100, maxPosition));
+
+          const avgColor = getColorForTemperature(avgTemp);
+          const rangeWidth = clampedMaxPosition - clampedMinPosition;
+
           const legendHtml = `
-            <div class="heatmap-legend static-legend">
-              <div class="legend-gradient"></div>
+            <div class="heatmap-legend dynamic-legend">
+              <div class="legend-top-labels">
+                <span class="legend-min-label">Min: ${minTemp.toFixed(1)}°F</span>
+                <span class="legend-avg-label">Avg: ${avgTemp.toFixed(1)}°F</span>
+                <span class="legend-max-label">Max: ${maxTemp.toFixed(1)}°F</span>
+              </div>
+              <div class="legend-gradient-container">
+                <div class="legend-gradient"></div>
+                <div class="legend-out-of-range-fill" style="left: 0%; width: ${clampedMinPosition}%;"></div>
+                <div class="legend-range-fill" style="left: ${clampedMinPosition}%; width: ${rangeWidth}%;"></div>
+                <div class="legend-out-of-range-fill" style="left: ${clampedMaxPosition}%; width: ${100 - clampedMaxPosition}%;"></div>
+                <div class="legend-marker-bar min-marker" style="left: ${clampedMinPosition}%;"></div>
+                <div class="legend-marker-bar avg-marker" style="left: ${clampedAvgPosition}%; background-color: ${avgColor};"></div>
+                <div class="legend-marker-bar max-marker" style="left: ${clampedMaxPosition}%;"></div>
+              </div>
               <div class="legend-labels">
                 <span>${HEATMAP_MIN_TEMP_F}°F</span>
                 <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.25).toFixed(0)}°</span>
@@ -2388,10 +2440,7 @@ window.onload = async function () {
               </div>
             </div>
           `;
-          el.innerHTML = `
-            <div class="map-display-message">${result.message}</div>
-            ${legendHtml}
-          `;
+          el.innerHTML = legendHtml;
         } else {
           el.textContent = result.message;
         }
