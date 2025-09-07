@@ -2032,6 +2032,10 @@ window.onload = async function () {
   // --- NOAA NWS API and Heatmap Functions ---
   let temperatureHeatmapEntity = null;
   let temperatureAnalysisRunning = false;
+  // --- Global state for heatmap opacity controls ---
+  let heatmapOpacity = 0.7; // The current logical opacity value.
+  let lastVisibleOpacity = 0.7; // Stores the opacity value before it was hidden.
+
 
   // --- Fixed Temperature Scale for Heatmap (Fahrenheit) ---
   const HEATMAP_MIN_TEMP_F = 0;
@@ -2234,7 +2238,10 @@ window.onload = async function () {
               coordinates: bounds,
               material: new Cesium.ImageMaterialProperty({
                   image: heatmapCanvas,
-                  transparent: true
+                  transparent: true,
+                  // Use a color property to control opacity.
+                  // The alpha value will be controlled by our slider.
+                  color: new Cesium.Color(1.0, 1.0, 1.0, heatmapOpacity)
               }),
               height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
               heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
@@ -2407,6 +2414,55 @@ window.onload = async function () {
     }
   }
 
+  /**
+   * Updates the opacity of the temperature heatmap entity.
+   * @param {number} opacity The new opacity value (0.0 to 1.0).
+   * @param {boolean} [updateSlider=false] Whether to also update the slider's visual position.
+   */
+  function updateHeatmapOpacity(opacity, updateSlider = false, fromSlider = false) {
+    heatmapOpacity = opacity;
+
+    // Update the Cesium entity
+    if (temperatureHeatmapEntity && temperatureHeatmapEntity.rectangle.material.color) {
+      temperatureHeatmapEntity.rectangle.material.color.setValue(
+        new Cesium.Color(1.0, 1.0, 1.0, opacity)
+      );
+    }
+
+    // Update the UI elements
+    const icon = document.getElementById('heatmap-visibility-toggle-icon');
+    const slider = document.getElementById('heatmap-opacity-slider');
+
+    if (slider) {
+      if (updateSlider) {
+        slider.value = opacity;
+      }
+      slider.disabled = false; // Per request, slider is never locked.
+    }
+
+    if (icon) {
+      icon.className = opacity === 0 ? 'fas fa-eye-slash' : 'fas fa-eye';
+    }
+  }
+
+  /**
+   * Toggles the visibility of the heatmap when the eye icon is clicked.
+   */
+  function toggleHeatmapVisibility() {
+    if (heatmapOpacity > 0) {
+      // If it's visible, hide it. Store the current opacity first.
+      lastVisibleOpacity = heatmapOpacity;
+      updateHeatmapOpacity(0.0, true, false);
+    } else {
+      // If it's hidden, restore it.
+      // If lastVisibleOpacity is 0, it means the user manually slid to 0.
+      // In this case, we restore to the default. Otherwise, restore to the last saved value.
+      const restoreValue = lastVisibleOpacity > 0 ? lastVisibleOpacity : 0.7;
+      updateHeatmapOpacity(restoreValue, true, false);
+    }
+  }
+
+
   // --- Dynamic Filter Definitions (Updated) ---
   const filterDefinitions = [
     {
@@ -2469,12 +2525,40 @@ window.onload = async function () {
                 <span>${legendLabels[4]}°F</span>
               </div>
             </div>
+            <div class="heatmap-controls">
+              <button id="heatmap-visibility-toggle" class="heatmap-control-btn" title="Toggle Visibility">
+                <i id="heatmap-visibility-toggle-icon" class="fas fa-eye"></i>
+              </button>
+              <div class="heatmap-slider-container">
+                <i class="fas fa-circle" style="font-size: 8px; opacity: 0.3;"></i>
+                <input type="range" id="heatmap-opacity-slider" min="0" max="1" step="0.05" value="${heatmapOpacity}" class="heatmap-opacity-slider" title="Adjust Opacity" />
+                <i class="fas fa-circle" style="font-size: 12px;"></i>
+              </div>
+            </div>
           `;
           el.innerHTML = legendHtml;
         } else {
           el.textContent = result.message;
         }
         el.classList.add('map-display');
+      },
+      postRenderFn: () => {
+        // Attach event listeners after the HTML is in the DOM
+        const slider = document.getElementById('heatmap-opacity-slider');
+        const toggleBtn = document.getElementById('heatmap-visibility-toggle');
+
+        if (slider) {
+          slider.addEventListener('input', (e) => {
+            const newOpacity = parseFloat(e.target.value);
+            updateHeatmapOpacity(newOpacity, false, true);
+            if (newOpacity === 0) {
+              lastVisibleOpacity = 0; // Mark that user manually slid to 0
+            }
+          });
+        }
+        if (toggleBtn) {
+          toggleBtn.addEventListener('click', toggleHeatmapVisibility);
+        }
       },
       metadata: `
         <h5>Surface Temperature Heatmap</h5>
@@ -2501,6 +2585,9 @@ window.onload = async function () {
         try {
           const result = await def.analysisFn(bounds);
           def.displayFn(result, display);
+          if (def.postRenderFn) {
+            def.postRenderFn();
+          }
         } catch (error) {
           display.textContent = 'Error';
           console.error(`Analysis failed for ${filterId}:`, error);
