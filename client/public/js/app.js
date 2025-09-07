@@ -2411,7 +2411,7 @@ window.onload = async function () {
   const filterDefinitions = [
     {
       id: 'temperature',
-      label: 'Temperature Grid',
+      label: 'Temperature Heatmap',
       description: "Fetches surface temperature data from NOAA's NWS API and displays a heatmap.",
       analysisFn: async (bounds) => {
         // This wrapper ensures we can pass min/max to the display function
@@ -2477,7 +2477,7 @@ window.onload = async function () {
         el.classList.add('map-display');
       },
       metadata: `
-        <h5>Surface Temperature Grid</h5>
+        <h5>Surface Temperature Heatmap</h5>
         <p>Gridded temperature data provided by the National Weather Service (NWS) API. This is not satellite LST, but forecast grid data.</p>
         <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
       `
