@@ -332,12 +332,24 @@ html, body {
     border: 1px solid #555;
     position: relative;
     display: flex;
-    align-items: center;
     gap: 12px;
+    user-select: none;
+    transition: background-color 0.2s ease;
+  }
+  /* Add pointer cursor only when the item is interactive (not locked) */
+  .bb-filter-item:not(.locked) {
+    cursor: pointer;
+  }
+  .bb-filter-item:not(.locked):hover {
+    background-color: #424242; /* Subtle hover effect */
   }
   .bb-filter-item.locked {
     opacity: 0.8;
     background: #333;
+  }
+  .bb-filter-item .bb-filter-control {
+    /* Align checkbox to the top to match the header */
+    align-self: flex-start;
   }
   .bb-filter-item.inactive-while-locked {
     opacity: 0.4;
@@ -352,8 +364,14 @@ html, body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+  .bb-filter-item-header label {
     font-weight: bold;
-    color: #00aaff;
+    color: #ddd; /* Default color for unselected title */
+    transition: color 0.3s ease;
+  }
+  .bb-filter-item.selected .bb-filter-item-header label {
+    color: #00aaff; /* Blue color when selected */
   }
   .bb-filter-info-btn {
     background: #555;

@@ -2016,6 +2016,7 @@ window.onload = async function () {
       currentBoundingBox.rectangle.material = colorInactive;
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       clearTemperatureGrid(); // Clear old analysis results
+      resetAllFiltersUI(); // Ensure filter UI is reset
       clearWeatherAlerts();
     }
     originalBoundingBoxCartesians = null;
@@ -2045,6 +2046,7 @@ window.onload = async function () {
     if (currentBoundingBox && originalBoundingBoxCartesians) {
       // Revert to the static, original rectangle
       currentBoundingBox.rectangle.coordinates = originalBoundingBoxCartesians;
+      resetAllFiltersUI(); // Ensure filter UI is reset
     }
     originalBoundingBoxCartesians = null;
 
@@ -2908,6 +2910,39 @@ window.onload = async function () {
     }
   ];
 
+  /**
+   * Resets all filter UI elements in the bounding box dialog to their default, non-activated state.
+   * This is a centralized function to ensure consistent UI cleanup.
+   */
+  function resetAllFiltersUI() {
+    const filterItems = document.querySelectorAll('.bb-filter-item');
+    filterItems.forEach(item => {
+      const checkbox = item.querySelector('.filter-checkbox');
+      const display = item.querySelector('.filter-display-result');
+      const control = item.querySelector('.bb-filter-control');
+      const description = item.querySelector('.bb-filter-item-desc');
+      const infoBtn = item.querySelector('.bb-filter-info-btn');
+
+      // Remove all state-related classes
+      item.classList.remove('locked', 'inactive-while-locked');
+
+      // Reset display elements
+      if (display) {
+        display.classList.add('hidden');
+        display.classList.remove('map-display');
+        display.textContent = ''; // Clear old results
+      }
+
+      // Restore controls
+      if (control) control.classList.remove('hidden');
+      if (checkbox) {
+        checkbox.classList.remove('hidden');
+        checkbox.disabled = false;
+      }
+      if (description) description.style.display = '';
+      if (infoBtn) infoBtn.style.display = '';
+    });
+  }
   // Main analysis runner
   async function runBoundingBoxAnalysis() {
     if (!currentBoundingBox) return;
@@ -2945,19 +2980,18 @@ window.onload = async function () {
     const filterItems = document.querySelectorAll('.bb-filter-item');
     filterItems.forEach(item => {
       const checkbox = item.querySelector('.filter-checkbox');
-      const display = item.querySelector('.filter-display-result');
-      const control = item.querySelector('.bb-filter-control');
-      const description = item.querySelector('.bb-filter-item-desc');
-      const infoBtn = item.querySelector('.bb-filter-info-btn');
       const filterId = item.dataset.filterId;
       const isSelected = filterState[filterId];
 
       if (isBoundingBoxActivated) {
         item.classList.add('locked');
         checkbox.disabled = true;
+        const display = item.querySelector('.filter-display-result');
+        const control = item.querySelector('.bb-filter-control');
+        const description = item.querySelector('.bb-filter-item-desc');
+        const infoBtn = item.querySelector('.bb-filter-info-btn');
 
         if (isSelected) {
-          // This filter was selected, show its result area
           item.classList.remove('inactive-while-locked');
           if (control) control.classList.add('hidden');
           display.classList.remove('hidden');
@@ -2965,7 +2999,6 @@ window.onload = async function () {
           if (description) description.style.display = '';
           if (infoBtn) infoBtn.style.display = '';
         } else {
-          // This filter was NOT selected, gray it out
           item.classList.add('inactive-while-locked');
           if (control) control.classList.add('hidden');
           if (description) description.style.display = 'none';
@@ -2973,16 +3006,7 @@ window.onload = async function () {
         }
       } else {
         // Deactivating the box, reset all filters to their default state
-        item.classList.remove('locked');
-        item.classList.remove('inactive-while-locked');
-        display.classList.remove('map-display'); // Remove special display class
-        if (control) control.classList.remove('hidden');
-        checkbox.classList.remove('hidden');
-        checkbox.disabled = false;
-        if (display) display.classList.add('hidden');
-        display.textContent = ''; // Clear old results
-        if (description) description.style.display = '';
-        if (infoBtn) infoBtn.style.display = '';
+        resetAllFiltersUI();
       }
     });
 
@@ -3022,6 +3046,7 @@ window.onload = async function () {
       currentBoundingBox = null;
       isBoundingBoxActivated = false;
       clearTemperatureGrid();
+      resetAllFiltersUI();
       clearWeatherAlerts();
     }
     updateBoundingBoxUI('initial');
@@ -3115,9 +3140,24 @@ window.onload = async function () {
 
       const checkbox = item.querySelector('.filter-checkbox');
       filterState[def.id] = checkbox.checked;
-      checkbox.addEventListener('change', (e) => { 
+      checkbox.addEventListener('change', (e) => {
         filterState[def.id] = e.target.checked;
+        item.classList.toggle('selected', e.target.checked);
         updateBoundingBoxUI(boundingBoxState); // Re-evaluate button states
+      });
+
+      // Make the whole item clickable to toggle the checkbox
+      item.addEventListener('click', (e) => {
+        // Do nothing if the click was on the info button or the checkbox itself
+        if (e.target.closest('.bb-filter-info-btn') || e.target.matches('.filter-checkbox')) {
+          return;
+        }
+        // Do nothing if the filters are locked
+        if (item.classList.contains('locked')) {
+          return;
+        }
+        checkbox.checked = !checkbox.checked;
+        checkbox.dispatchEvent(new Event('change')); // Trigger the change event to update state
       });
 
       const infoBtn = item.querySelector('.bb-filter-info-btn');
