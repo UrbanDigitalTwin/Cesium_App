@@ -2116,6 +2116,31 @@ window.onload = async function () {
   }
 
   /**
+   * Creates or updates a reusable progress bar within a container element.
+   * @param {HTMLElement} container The element to hold the progress bar.
+   * @param {number} progress The current progress value.
+   * @param {number} total The total value for 100%.
+   * @param {string} [label] Optional text to display. If not provided, a default "Loading..." text is used.
+   */
+  function updateProgressBar(container, progress, total, label = '') {
+    const percentage = total > 0 ? (progress / total) * 100 : 0;
+
+    let progressBarContainer = container.querySelector('.progress-bar-container');
+    if (!progressBarContainer) {
+        container.innerHTML = `
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill"></div>
+                <span class="progress-bar-label"></span>
+            </div>
+        `;
+        progressBarContainer = container.querySelector('.progress-bar-container');
+    }
+
+    progressBarContainer.querySelector('.progress-bar-fill').style.width = `${percentage}%`;
+    progressBarContainer.querySelector('.progress-bar-label').textContent = label || `Loading... (${progress}/${total})`;
+  }
+
+  /**
    * Generates a heatmap canvas from a set of data points.
    * This uses a simple gradient method inspired by heatmap.js.
    * @param {number} width The width of the canvas.
@@ -2358,8 +2383,7 @@ window.onload = async function () {
         // Update the UI with progress if needed
         const item = document.querySelector(`.bb-filter-item[data-filter-id="temperature"]`);
         if (item) {
-          const display = item.querySelector('.filter-display-result');
-          display.textContent = `Loading... (${pointsProcessed}/${gridPoints.length})`;
+          updateProgressBar(item.querySelector('.filter-display-result'), pointsProcessed, gridPoints.length);
         }
       }
     });
@@ -2391,7 +2415,7 @@ window.onload = async function () {
     {
       id: 'temperature',
       label: 'Temperature Grid',
-      description: 'Displays a 5x5 grid of temperature points from NOAA NWS.',
+      description: "Fetches surface temperature data from NOAA's NWS API and displays a heatmap.",
       analysisFn: async (bounds) => {
         // This wrapper ensures we can pass min/max to the display function
         const result = await fetchTemperatureData(bounds);
@@ -2467,7 +2491,7 @@ window.onload = async function () {
         const item = document.querySelector(`.bb-filter-item[data-filter-id="${filterId}"]`);
         const display = item.querySelector('.filter-display-result');
         
-        display.textContent = 'Loading...';
+        updateProgressBar(display, 0, 1, 'Loading...');
         try {
           const result = await def.analysisFn(bounds);
           def.displayFn(result, display);

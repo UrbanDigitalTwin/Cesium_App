@@ -402,6 +402,38 @@ html, body {
   display: none !important;
 }
 
+/* --- Reusable Progress Bar --- */
+.progress-bar-container {
+  width: 100%;
+  background-color: #2a2a2a;
+  border: 1px solid #555;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.progress-bar-fill {
+  background-color: #00aaff;
+  height: 100%;
+  width: 0%;
+  border-radius: 10px 0 0 10px;
+  transition: width 0.2s ease-out;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.progress-bar-label {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
 /* --- Heatmap Legend Styles --- */
 /* This allows the filter result container to hold complex HTML like the legend */
 .map-display {
