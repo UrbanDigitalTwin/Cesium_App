@@ -571,6 +571,53 @@ html, body {
   margin: 2px 0 0 0;
   line-height: 1.3;
 }
+
+/* --- Aviation Text Summary --- */
+.aviation-text-summary {
+  font-size: 13px;
+  color: #ddd;
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #666;
+  line-height: 1.4;
+}
+
+/* --- Aviation Data Display Styles --- */
+.aviation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.aviation-metric {
+  background-color: #333;
+  border-radius: 4px;
+  padding: 8px;
+  text-align: center;
+  border-width: 2px;
+  border-style: solid;
+  border-color: #555; /* Default border color */
+}
+.aviation-metric.flight-category {
+  grid-column: 1 / -1; /* Span both columns */
+}
+.aviation-label {
+  display: block;
+  font-size: 11px;
+  color: #bbb;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.aviation-label i {
+  margin-right: 4px;
+  color: #888;
+}
+.aviation-value {
+  display: block;
+  font-size: 16px;
+  font-weight: bold;
+  color: #fff;
+}
+
   /* Hamburger menu */
   #hamburgerBtn {
     position: absolute;

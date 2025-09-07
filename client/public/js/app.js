@@ -2307,10 +2307,12 @@ window.onload = async function () {
   /**
    * Creates a grid of points within a given bounding box.
    * The density of the grid is determined dynamically by the size of the box.
+   * unless a fixed number of points is specified.
    * @param {Cesium.Rectangle} bounds The bounding box.
+   * @param {number|null} [fixedPointsPerSide=null] If provided, creates a grid of this size (e.g., 3 for a 3x3 grid).
    * @returns {Array<{lon: number, lat: number}>} An array of longitude/latitude points.
    */
-  function createPointGrid(bounds) {
+  function createPointGrid(bounds, fixedPointsPerSide = null) {
     const minPointsPerSide = 5;  // For small boxes (< 50 sq mi)
     const maxPointsPerSide = 16; // For large boxes (> 1000 sq mi)
 
@@ -2326,7 +2328,9 @@ window.onload = async function () {
     const areaMeters2 = (bounds.east - bounds.west) * (R * R) * Math.abs(Math.sin(bounds.north) - Math.sin(bounds.south));
     const areaMiles2 = areaMeters2 / sqMetersPerSqMile;
 
-    let pointsPerSide;
+    let pointsPerSide = fixedPointsPerSide;
+
+    if (pointsPerSide === null) {
     if (areaMiles2 <= minAreaThreshold) {
       pointsPerSide = minPointsPerSide;
     } else if (areaMiles2 >= maxAreaThreshold) {
@@ -2335,6 +2339,7 @@ window.onload = async function () {
       // Linearly interpolate the number of points between the thresholds
       const t = (areaMiles2 - minAreaThreshold) / (maxAreaThreshold - minAreaThreshold);
       pointsPerSide = Math.round(Cesium.Math.lerp(minPointsPerSide, maxPointsPerSide, t));
+    }
     }
 
     const { west, south, east, north } = bounds;
@@ -2385,7 +2390,7 @@ window.onload = async function () {
       try {
         // 1. Get the gridpoint URL from the NWS API for each point
         const pointsUrl = `https://api.weather.gov/points/${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
-        const pointsResponse = await fetchWithTimeout(pointsUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } }, 7000);
+        const pointsResponse = await fetchWithTimeout(pointsUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds@ucf.edu)' } }, 7000);
         if (!pointsResponse.ok) {
           console.warn(`NWS points API failed for ${point.lat},${point.lon}: ${pointsResponse.status}`);
           return; // Skip this point
@@ -2396,7 +2401,7 @@ window.onload = async function () {
         if (!gridUrl) return;
 
         // 2. Get the grid data
-        const gridResponse = await fetchWithTimeout(gridUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } }, 7000);
+        const gridResponse = await fetchWithTimeout(gridUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds@ucf.edu)' } }, 7000);
         if (!gridResponse.ok) return;
         const gridData = await gridResponse.json();
 
@@ -2461,7 +2466,7 @@ window.onload = async function () {
     const url = `https://api.weather.gov/alerts/active?point=${centerLat.toFixed(4)},${centerLon.toFixed(4)}`;
 
     try {
-      const response = await fetchWithTimeout(url, { headers: { 'User-Agent': '(my-cesium-app, hynds.j@gmail.com)' } }, 10000);
+      const response = await fetchWithTimeout(url, { headers: { 'User-Agent': '(my-cesium-app, hynds@ucf.edu)' } }, 10000);
       if (!response.ok) {
         return { message: `NWS Alerts API Error: ${response.status}` };
       }
@@ -2600,6 +2605,113 @@ window.onload = async function () {
     }
   }
 
+  /**
+   * Fetches aviation-related weather data (visibility, wind, sky cover) from the NWS API.
+   * @param {Cesium.Rectangle} bounds The bounding box for the analysis.
+   * @returns {Promise<object>} An object containing the aggregated aviation data or an error message.
+   */
+  async function fetchAviationData(bounds) {
+    const gridPoints = createPointGrid(bounds, 3); // Use a fixed 3x3 grid for faster, sparse sampling
+    let pointsProcessed = 0;
+    const aviationData = {
+      visibility: [],
+      windSpeed: [],
+      windDirection: [],
+      skyCover: [],
+      precipitationChance: []
+    };
+
+    const promises = gridPoints.map(async (point) => {
+      try {
+        const pointsUrl = `https://api.weather.gov/points/${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
+        const pointsResponse = await fetchWithTimeout(pointsUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds@ucf.edu)' } }, 7000);
+        if (!pointsResponse.ok) return;
+
+        const pointsData = await pointsResponse.json();
+        const gridUrl = pointsData.properties.forecastGridData;
+        if (!gridUrl) return;
+
+        const gridResponse = await fetchWithTimeout(gridUrl, { headers: { 'User-Agent': '(my-cesium-app, hynds@ucf.edu)' } }, 7000);
+        if (!gridResponse.ok) return;
+        const gridData = await gridResponse.json();
+
+        // Extract relevant properties
+        const props = gridData.properties;
+        if (props.visibility?.values?.[0]?.value != null) {
+          const visibilityMeters = props.visibility.values[0].value;
+          aviationData.visibility.push(visibilityMeters / 1609.34); // Convert meters to miles
+        }
+        if (props.windSpeed?.values?.[0]?.value != null) {
+          const windSpeedKmh = props.windSpeed.values[0].value;
+          aviationData.windSpeed.push(windSpeedKmh * 0.54); // Convert km/h to knots
+        }
+        if (props.windDirection?.values?.[0]?.value != null) {
+          aviationData.windDirection.push(props.windDirection.values[0].value);
+        }
+        if (props.skyCover?.values?.[0]?.value != null) {
+          aviationData.skyCover.push(props.skyCover.values[0].value);
+        }
+        if (props.probabilityOfPrecipitation?.values?.[0]?.value != null) {
+          aviationData.precipitationChance.push(props.probabilityOfPrecipitation.values[0].value);
+        }
+
+      } catch (error) {
+        console.warn(`Could not process aviation data for point ${point.lat},${point.lon}:`, error.message);
+      } finally {
+        pointsProcessed++;
+        const item = document.querySelector(`.bb-filter-item[data-filter-id="aviation"]`);
+        if (item) {
+          updateProgressBar(item.querySelector('.filter-display-result'), pointsProcessed, gridPoints.length);
+        }
+      }
+    });
+
+    await Promise.all(promises);
+
+    if (aviationData.visibility.length > 0) {
+      const calcAverage = (arr) => arr.reduce((a, b) => a + b, 0) / arr.length;
+      
+      // For wind direction, we need to calculate the vector average
+      let avgWindSin = 0;
+      let avgWindCos = 0;
+      aviationData.windDirection.forEach(deg => {
+        const rad = deg * (Math.PI / 180);
+        avgWindSin += Math.sin(rad);
+        avgWindCos += Math.cos(rad);
+      });
+      const avgWindDir = (Math.atan2(avgWindSin, avgWindCos) * (180 / Math.PI) + 360) % 360;
+
+      return {
+        message: 'Aviation Data Summary',
+        avgVisibility: calcAverage(aviationData.visibility),
+        avgWindSpeed: calcAverage(aviationData.windSpeed),
+        avgWindDirection: avgWindDir,
+        avgSkyCover: calcAverage(aviationData.skyCover),
+        avgPrecipitationChance: calcAverage(aviationData.precipitationChance),
+      };
+    } else {
+      return { message: 'Error: No aviation data found for this area.' };
+    }
+  }
+
+  /**
+   * Converts wind direction in degrees to a cardinal direction.
+   * @param {number} degree The wind direction in degrees.
+   * @returns {string} The cardinal direction (e.g., N, NE, E).
+   */
+  function degreeToCardinal(degree) {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    const index = Math.round(degree / 22.5) % 16;
+    return directions[index];
+  }
+
+  function getFlightCategory(visibility, ceiling) {
+    if (visibility < 1 || ceiling < 500) return { name: 'LIFR', color: '#ff4d4d' }; // Low IFR
+    if (visibility < 3 || ceiling < 1000) return { name: 'IFR', color: '#ff9a4d' }; // IFR
+    if (visibility < 5 || ceiling < 3000) return { name: 'MVFR', color: '#ffc107' }; // Marginal VFR
+    return { name: 'VFR', color: '#4caf50' }; // VFR
+  }
+
 
   // --- Dynamic Filter Definitions (Updated) ---
   const filterDefinitions = [
@@ -2736,6 +2848,61 @@ window.onload = async function () {
           Displays active weather alerts (watches, warnings, advisories) issued by the National Weather Service.
           Data is queried for the center point of the bounding box. A colored dot is placed on the map for each alert.
         </p>
+        <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
+      `
+    },
+    {
+      id: 'aviation',
+      label: 'Aviation Conditions',
+      description: "Provides key atmospheric conditions relevant to aviation from the NWS API.",
+      analysisFn: fetchAviationData,
+      displayFn: (result, el) => {
+        if (result.avgVisibility !== undefined) {
+          const cardinalWind = degreeToCardinal(result.avgWindDirection);
+          // A simple heuristic for ceiling: assume ceiling is where cloud cover > 50%
+          // This is a major simplification. Real ceiling data is more complex.
+          // For this demo, we'll just use visibility to determine a flight category.
+          // A more accurate approach would need `quantitativePrecipitation` or similar.
+          // Let's assume a high ceiling for now if not directly available.
+          const pseudoCeiling = result.avgSkyCover > 50 ? 5000 : 20000; // feet
+          const flightCategory = getFlightCategory(result.avgVisibility, pseudoCeiling);
+          const summaryText = `Conditions are ${flightCategory.name} with winds from the ${cardinalWind} at ${result.avgWindSpeed.toFixed(0)} knots.`;
+
+          const html = `
+            <p class="aviation-text-summary">${summaryText}</p>
+            <div class="aviation-grid">
+              <div class="aviation-metric flight-category" style="border-color: ${flightCategory.color};">
+                <span class="aviation-label">Flight Category</span>
+                <span class="aviation-value" style="color: ${flightCategory.color};">${flightCategory.name}</span>
+              </div>
+              <div class="aviation-metric">
+                <span class="aviation-label"><i class="fas fa-eye"></i> Visibility</span>
+                <span class="aviation-value">${result.avgVisibility.toFixed(1)} mi</span>
+              </div>
+              <div class="aviation-metric">
+                <span class="aviation-label"><i class="fas fa-wind"></i> Wind</span>
+                <span class="aviation-value">${cardinalWind} @ ${result.avgWindSpeed.toFixed(0)} kts</span>
+              </div>
+              <div class="aviation-metric">
+                <span class="aviation-label"><i class="fas fa-cloud-showers-heavy"></i> Precip Chance</span>
+                <span class="aviation-value">${result.avgPrecipitationChance.toFixed(0)}%</span>
+              </div>
+              <div class="aviation-metric">
+                <span class="aviation-label"><i class="fas fa-cloud"></i> Sky Cover</span>
+                <span class="aviation-value">${result.avgSkyCover.toFixed(0)}%</span>
+              </div>
+            </div>
+          `;
+          el.innerHTML = html;
+        } else {
+          el.textContent = result.message;
+        }
+        el.classList.add('map-display');
+      },
+      metadata: `
+        <h5>Aviation Atmospheric Conditions</h5>
+        <p>Displays a summary of conditions relevant to aviation, derived from the NWS forecast grid data. Values are an average over the selected area.</p>
+        <p><strong>Flight Category</strong> is an estimate based on visibility (VFR, MVFR, IFR, LIFR). <strong>Wind</strong> is shown in cardinal direction and knots. <strong>Visibility</strong> is in statute miles.</p>
         <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
       `
     }
