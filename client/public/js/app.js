@@ -2045,20 +2045,16 @@ window.onload = async function () {
    */
   function getColorForTemperature(tempF) {
     const position = (tempF - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F;
-    const clampedPosition = Math.max(0, Math.min(1, position));
-    
-    // This logic mirrors the createColorGradient function to find the correct color.
-    const colorStops = [
-      { stop: 0,    color: [0, 0, 255] },    // Blue
-      { stop: 0.25, color: [0, 255, 255] },  // Cyan
-      { stop: 0.5,  color: [0, 255, 0] },    // Green
-      { stop: 0.75, color: [255, 255, 0] },  // Yellow
-      { stop: 1,    color: [255, 0, 0] }     // Red
-    ];
+    const clampedPosition = Cesium.Math.clamp(position, 0, 1);
 
+    // Get the full gradient array
+    const gradientColors = createColorGradient();
+
+    // Find the color at the calculated position
     const colorIndex = Math.floor(clampedPosition * 255);
-    const gradientColors = createColorGradient(); // This function already exists and generates the 256 colors
-    const [r, g, b] = gradientColors[colorIndex];
+    const color = gradientColors[colorIndex];
+    if (!color) return 'rgb(0,0,0)'; // Fallback
+    const [r, g, b] = color;
     return `rgb(${r}, ${g}, ${b})`;
   }
 
@@ -2263,7 +2259,7 @@ window.onload = async function () {
 
     // Define corresponding rectangle height range
     const minRectangleHeight = 50;   // Increased minimum height when zoomed in
-    const maxRectangleHeight = 2000; // Significantly increased maximum height for far zoom
+    const maxRectangleHeight = 4000; // Significantly increased maximum height for far zoom
 
     if (cameraHeight <= minCameraHeight) {
       return minRectangleHeight;
@@ -2427,6 +2423,15 @@ window.onload = async function () {
           const avgTemp = result.value;
           const minTemp = result.minTemp;
           const maxTemp = result.maxTemp;
+
+          // --- Define the fixed scale for the legend labels ---
+          const legendLabels = [
+            HEATMAP_MIN_TEMP_F,
+            HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.25,
+            HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.5,
+            HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.75,
+            HEATMAP_MAX_TEMP_F
+          ];
           
           // Calculate the positions of all markers and the range (0% to 100%)
           const avgPosition = ((avgTemp - HEATMAP_MIN_TEMP_F) / HEATMAP_TEMP_RANGE_F) * 100;
@@ -2457,11 +2462,11 @@ window.onload = async function () {
                 <div class="legend-marker-bar max-marker" style="left: ${clampedMaxPosition}%;"></div>
               </div>
               <div class="legend-labels">
-                <span>${HEATMAP_MIN_TEMP_F}°F</span>
-                <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.25).toFixed(0)}°</span>
-                <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.5).toFixed(0)}°</span>
-                <span>${(HEATMAP_MIN_TEMP_F + HEATMAP_TEMP_RANGE_F * 0.75).toFixed(0)}°</span>
-                <span>${HEATMAP_MAX_TEMP_F}°F</span>
+                <span>${legendLabels[0]}°F</span>
+                <span>${legendLabels[1].toFixed(0)}°</span>
+                <span>${legendLabels[2].toFixed(0)}°</span>
+                <span>${legendLabels[3].toFixed(0)}°</span>
+                <span>${legendLabels[4]}°F</span>
               </div>
             </div>
           `;
