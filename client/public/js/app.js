@@ -1,6 +1,6 @@
-// Initialize app when window loads
+// initialize app when window loads
 window.onload = async function () {
-  // 1. Fetch configuration from server including Cesium Ion access token
+  // fetch config
   try {
     const response = await fetch("/config");
     const config = await response.json();
@@ -14,12 +14,12 @@ window.onload = async function () {
     console.error("Failed to load configuration:", error);
   }
 
-  // 511NY Camera API Configuration
+  // 511NY camera API config
   let cameraEntities = [];
   let activeCameraInfoBox = null;
-  let camerasVisible = false; // Set to false by default
+  let camerasVisible = false; // Start with cameras hidden
 
-  // Emergency Management Configuration
+  // Emergency management config
   let emEventEntities = [];
   let emEventsVisible = false;
 
@@ -37,11 +37,11 @@ window.onload = async function () {
   let isDraggingHandle = false;
   let cameraPanRequest = null;
 
-  // Function to fetch and process camera data
+  // fetch and process camera data
   async function fetchAndProcessCameras() {
     try {
       console.log("Fetching camera data...");
-      // Revert to using the local JSON file
+      // Using the local JSON file for now
       const response = await fetch("/cameras");
       const data = await response.json();
 
@@ -58,7 +58,7 @@ window.onload = async function () {
       });
       cameraEntities = [];
 
-      // Process each camera
+      // process each camera
       data.forEach((camera) => {
         if (!camera.Longitude || !camera.Latitude) return;
         const entity = viewer.entities.add({
@@ -94,7 +94,7 @@ window.onload = async function () {
     }
   }
 
-  // Function to create camera info box HTML
+  // Create camera info box HTML
   function createCameraInfoBox(camera) {
     return `
             <div class="camera-info-box">
@@ -125,9 +125,9 @@ window.onload = async function () {
         `;
   }
 
-  // Function to create emergency event info box HTML
+  // create emergency event info box HTML
   function createEmergencyEventInfoBox(event) {
-    // Format timestamp if available
+    // Format timestamp if we have one
     let timeStr = "Unknown";
     if (event.time && event.time._seconds) {
       try {
@@ -141,7 +141,7 @@ window.onload = async function () {
     // Create image carousel HTML if images exist
     let imagesHtml = "";
     if (event.images && event.images.length > 0) {
-      // Create a unique ID for this carousel
+      // create a unique ID for this carousel
       const carouselId = `carousel-${Date.now()}`;
 
       // Generate carousel slides
@@ -157,7 +157,7 @@ window.onload = async function () {
         })
         .join("");
 
-      // Generate carousel navigation dots
+      // generate carousel navigation dots
       const navDots =
         event.images.length > 1
           ? `
@@ -195,7 +195,7 @@ window.onload = async function () {
         </div>
       `;
 
-      // Add carousel navigation function if it doesn't exist
+      // add carousel navigation function if it's not already there
       if (!window.navigateCarousel) {
         window.navigateCarousel = function (carouselId, direction) {
           const container = document.getElementById(carouselId);
@@ -211,7 +211,7 @@ window.onload = async function () {
             if (slide.classList.contains("active")) activeIndex = i;
           });
 
-          // Calculate next index
+          // calculate next index
           let nextIndex;
           if (direction === "next") {
             nextIndex = (activeIndex + 1) % slides.length;
@@ -256,7 +256,7 @@ window.onload = async function () {
     `;
   }
 
-  // 2. Initialize the Cesium Viewer with specific options
+  // Initialize the Cesium Viewer with specific options
   const imageryProviderViewModels = [
     ...Cesium.createDefaultImageryProviderViewModels(),
   ];
@@ -280,7 +280,7 @@ window.onload = async function () {
     }),
   });
 
-  // Set initial camera view to Florida coordinates
+  // set initial camera view to Florida
   viewer.camera.setView({
     destination: Cesium.Cartesian3.fromDegrees(
       -81.20002771749041,
@@ -300,7 +300,7 @@ window.onload = async function () {
   cameraInfoContainer.style.display = "none";
   document.body.appendChild(cameraInfoContainer);
 
-  // Add click handler for camera entities and emergency events
+  // click handler for camera entities and emergency events
   const cameraHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
   cameraHandler.setInputAction((click) => {
     const picked = viewer.scene.pick(click.position);
@@ -358,9 +358,9 @@ window.onload = async function () {
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-  // Function to toggle camera visibility
+  // Toggle camera visibility
   async function toggleCameras() {
-    // fetch camera data if it does not exist
+    // fetch camera data if it's not already loaded
     if (cameraEntities.length === 0) {
       await fetchAndProcessCameras();
     }
@@ -382,8 +382,7 @@ window.onload = async function () {
       this.classList.toggle("active");
       this.textContent = isVisible
         ? "Hide NY Street Cameras"
-        : "Show NY Street Cameras";
-      // Only fly to the specific NY point when cameras are shown
+        : "Show NY Street Cameras"; // only fly to the specific NY point when cameras are shown
       if (isVisible) {
         viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(
@@ -406,7 +405,7 @@ window.onload = async function () {
   let tileset = null;
   const GOOGLE_3D_TILESET_ASSET_ID = 2275207;
 
-  // 3. Load Google Photorealistic 3D Tiles
+  // Load Google Photorealistic 3D Tiles
   async function loadTileset() {
     try {
       tileset = await Cesium.Cesium3DTileset.fromIonAssetId(
@@ -414,7 +413,7 @@ window.onload = async function () {
       );
       viewer.scene.primitives.add(tileset);
 
-      // Load and plot GPS points
+      // load and plot GPS points
       const response = await fetch("data/syncronized_df_with_class (1).csv");
       const csvText = await response.text();
       const lines = csvText.split("\n");
@@ -499,7 +498,7 @@ window.onload = async function () {
 
   // --- Live Traffic Layer Logic ---
   let trafficLayer = null;
-  // No need to define API key here as it's handled by the server proxy
+  // No need to define API key here, server proxy handles it
   function addTrafficLayer() {
     try {
       console.log("Adding traffic layer...");
@@ -508,7 +507,7 @@ window.onload = async function () {
         url: `/tomtom-traffic?z={z}&x={x}&y={y}&ts=${ts}`,
         credit: "Traffic data TomTom",
         maximumLevel: 20,
-        // Add error handling for tile loading
+        // Error handling for tile loading
         errorCallback: function (e) {
           console.error("Error loading traffic tile:", e);
         },
@@ -545,10 +544,10 @@ window.onload = async function () {
     }
   }
 
-  // Emergency Management functionality
+  // Emergency management functionality
   async function fetchEmergencyEvents() {
     try {
-      // Show loading indicator
+      // Show loading indicator on the button
       if (sidebarEmergencyManageBtn) {
         sidebarEmergencyManageBtn.textContent = "Loading Events...";
         sidebarEmergencyManageBtn.disabled = true;
@@ -573,12 +572,12 @@ window.onload = async function () {
       // Clear existing event entities
       clearEmergencyEvents();
 
-      // Create a point primitive collection for better performance with many points
+      // Create a point primitive collection for better performance
       const pointPrimitives = viewer.scene.primitives.add(
         new Cesium.PointPrimitiveCollection()
       );
 
-      // Process each event and add it to the map
+      // process each event and add it to the map
       eventData.forEach((event) => {
         if (!event.latitude || !event.longitude) return;
 
@@ -608,7 +607,7 @@ window.onload = async function () {
           50 // Height in meters above ground
         );
 
-        // Add point primitive for each event (visual display)
+        // Add point primitive for each event (the visual part)
         const point = pointPrimitives.add({
           position: elevatedPosition,
           pixelSize: 16,
@@ -624,11 +623,11 @@ window.onload = async function () {
           ),
         });
 
-        // Add the entity with additional information for click events
+        // Add an entity with more info for click events
         // Using a larger transparent hit area to make clicking easier
         const entity = viewer.entities.add({
           position: elevatedPosition,
-          point: {
+          point: { // This is the clickable area
             pixelSize: 30, // Much larger size for easier hit testing
             color: Cesium.Color.TRANSPARENT.withAlpha(0.01), // Nearly transparent but still detectable
           },
@@ -658,7 +657,7 @@ window.onload = async function () {
         sidebarEmergencyManageBtn.classList.add("active");
       }
 
-      // Fly to the first event if available
+      // Fly to the first event if there is one
       if (eventData.length > 0) {
         viewer.camera.flyTo({
           destination: Cesium.Cartesian3.fromDegrees(
@@ -678,7 +677,7 @@ window.onload = async function () {
       console.error("Error in fetchEmergencyEvents:", error);
       alert(`Error loading emergency events: ${error.message}`);
 
-      // Reset button state
+      // Reset button state on error
       if (sidebarEmergencyManageBtn) {
         sidebarEmergencyManageBtn.textContent = "Emergency Management";
         sidebarEmergencyManageBtn.disabled = false;
@@ -687,9 +686,9 @@ window.onload = async function () {
     }
   }
 
-  // Function to clear emergency event entities from the map
+  // Clear emergency event entities from the map
   function clearEmergencyEvents() {
-    // Remove entities
+    // remove entities
     emEventEntities.forEach((entity) => {
       if (viewer.entities.contains(entity)) {
         viewer.entities.remove(entity);
@@ -704,7 +703,7 @@ window.onload = async function () {
     }
   }
 
-  // Function to toggle emergency events visibility
+  // Toggle emergency events visibility
   function toggleEmergencyEvents() {
     if (emEventsVisible) {
       // Hide events
@@ -796,7 +795,7 @@ window.onload = async function () {
     }
   };
 
-  // Emergency Management button click handler
+  // Emergency management button click handler
   if (sidebarEmergencyManageBtn) {
     sidebarEmergencyManageBtn.onclick = function () {
       if (sidebarEmergencyManageBtn) {
@@ -866,7 +865,7 @@ window.onload = async function () {
                    Lon: ${data.lon.toFixed(6)}<br>
                    Alt: ${data.alt.toFixed(2)}m</p>
               </div>
-              ${
+              ${ // show image and segmented image if available
                 data.image
                   ? `<div style="margin-left: 32px; margin-top: 24px;"><img src="data/Camera/${data.image}" alt="Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div><div style="margin-left: 32px; margin-top: 24px;"><img src="data/segmented_camera/${data.image}.png" alt="Segmented Point Image" style="max-width:300px; max-height:200px; border-radius:4px;"></div>`
                   : ""
@@ -1146,7 +1145,7 @@ window.onload = async function () {
     try {
       const response = await fetch(url);
       const data = await response.json();
-      return data.address && data.address.postcode
+      return data.address?.postcode
         ? data.address.postcode
         : null;
     } catch (e) {
@@ -1178,7 +1177,7 @@ window.onload = async function () {
 
   // Show image below the info box
   window.showImageBelowDialog = function (url) {
-    // Remove any existing image popup
+    // remove any existing image popup
     const oldPopup = document.getElementById("inlineImagePopup");
     if (oldPopup) oldPopup.remove();
 
@@ -1200,7 +1199,7 @@ window.onload = async function () {
 
   // Show video below the info box
   window.showVideoBelowDialog = function (url) {
-    // Remove any existing video popup
+    // remove any existing video popup
     const oldPopup = document.getElementById("inlineVideoPopup");
     if (oldPopup) {
       // Dispose of any existing Video.js player to prevent memory leaks
@@ -1216,7 +1215,7 @@ window.onload = async function () {
     popup.id = "inlineVideoPopup";
     popup.className = "inline-video-popup";
 
-    // Create close button
+    // create close button
     const closeBtn = document.createElement("span");
     closeBtn.className = "inline-video-close";
     closeBtn.innerHTML = "&times;";
@@ -1362,7 +1361,7 @@ window.onload = async function () {
     setupModalClose();
   }
 
-  // Add Camera Interoperability (Path Toggle) button logic
+  // Camera interoperability (path toggle) button logic
   let mainPathEntity = null;
   const pathToggleBtn = document.getElementById("ucfInteropBtn");
   if (pathToggleBtn) {
@@ -1432,7 +1431,7 @@ window.onload = async function () {
         this.classList.remove("active");
         this.textContent = "Traffic View";
       } else {
-        // Example: Using MapTiler Traffic tiles (replace with your provider if different)
+        // Example: using MapTiler Traffic tiles
         trafficViewLayer = viewer.imageryLayers.addImageryProvider(
           new Cesium.UrlTemplateImageryProvider({
             url: `https://api.maptiler.com/tiles/traffic/{z}/{x}/{y}.png?key=${trafficViewApiKey}`,
@@ -1492,7 +1491,7 @@ window.onload = async function () {
         this.textContent = "Hide FDOT Cameras";
       }
     };
-    // Add click handler for FDOT camera points
+    // Click handler for FDOT camera points
     const fdotHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
     fdotHandler.setInputAction((click) => {
       const picked = viewer.scene.pick(click.position);
@@ -1587,9 +1586,10 @@ window.onload = async function () {
   // --- Bounding Box Filter Dialog Elements ---
   const bbFilterDialog = document.getElementById('bbFilterDialog');
   const bbFilterToggleBtn = document.getElementById('bbFilterToggleBtn');
+  let wasFilterDialogMaximized = true; // To remember the state before editing
   const filterState = {};
 
-  // Define colors for different states
+  // Colors for different states
   const colorCreating = Cesium.Color.YELLOW.withAlpha(0.5);
   const colorInactive = new Cesium.Color(0.8, 0.2, 0.2, 0.3); // Dark pleasant red
   const colorActive = Cesium.Color.CYAN.withAlpha(0.3);
@@ -1888,6 +1888,13 @@ window.onload = async function () {
 
   function handleEditBoundingBox() {
     if (!currentBoundingBox) return;
+
+    // Store the current state, then minimize the filter dialog and hide the toggle button
+    wasFilterDialogMaximized = !bbFilterDialog.classList.contains('minimized');
+    bbFilterDialog.classList.add('minimized');
+    bbFilterToggleBtn.textContent = '+'; // Set to minimized state icon
+    bbFilterToggleBtn.style.display = 'none';
+
     updateBoundingBoxUI('editing');
     bbEditBtn.textContent = 'Cancel';
     let activeRectangle = null;
@@ -1921,7 +1928,7 @@ window.onload = async function () {
         const newPosition = viewer.scene.pickPosition(event.endPosition);
         if (Cesium.defined(newPosition)) {
           // Only update the handle's position. The CallbackProperty will handle the rest.
-          // --- New Intuitive Drag Logic ---
+          // --- New intuitive drag logic ---
           const newCartographic = Cesium.Cartographic.fromCartesian(newPosition);
           const cornerType = draggedHandle.properties.corner.getValue();
 
@@ -1980,6 +1987,13 @@ window.onload = async function () {
       editingHandler.destroy();
       editingHandler = null;
     }
+    // Restore filter dialog state and button visibility
+    if (wasFilterDialogMaximized) {
+      bbFilterDialog.classList.remove('minimized');
+      bbFilterToggleBtn.textContent = '-';
+    }
+    bbFilterToggleBtn.style.display = 'flex';
+
     removeEditHandles();
     viewer.canvas.style.cursor = 'default';
 
@@ -1993,17 +2007,15 @@ window.onload = async function () {
       // Revert to a static rectangle for performance
       currentBoundingBox.rectangle.coordinates = finalRect;
 
-      // --- FIX: Restore the correct color after saving ---
-      if (isBoundingBoxActivated) {
-        currentBoundingBox.rectangle.material = colorActive;
-        currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
-      } else {
-        currentBoundingBox.rectangle.material = colorInactive;
-        currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
-      }
+      // Deactivate the box upon saving, requiring the user to re-activate.
+      isBoundingBoxActivated = false;
+      currentBoundingBox.rectangle.material = colorInactive;
+      currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
+      clearTemperatureGrid(); // Clear old analysis results
     }
     originalBoundingBoxCartesians = null;
 
+    // Reset UI
     bbEditBtn.textContent = 'Edit';
     updateBoundingBoxUI('active');
     console.log('Saved bounding box edits.');
@@ -2014,6 +2026,13 @@ window.onload = async function () {
       editingHandler.destroy();
       editingHandler = null;
     }
+    // Restore filter dialog state and button visibility
+    if (wasFilterDialogMaximized) {
+      bbFilterDialog.classList.remove('minimized');
+      bbFilterToggleBtn.textContent = '-';
+    }
+    bbFilterToggleBtn.style.display = 'flex';
+
     removeEditHandles();
     viewer.canvas.style.cursor = 'default';
 
@@ -2037,7 +2056,7 @@ window.onload = async function () {
   let lastVisibleOpacity = 0.7; // Stores the opacity value before it was hidden.
 
 
-  // --- Fixed Temperature Scale for Heatmap (Fahrenheit) ---
+  // --- Fixed temperature scale for heatmap (Fahrenheit) ---
   const HEATMAP_MIN_TEMP_F = 0;
   const HEATMAP_MAX_TEMP_F = 110;
   const HEATMAP_TEMP_RANGE_F = HEATMAP_MAX_TEMP_F - HEATMAP_MIN_TEMP_F;
@@ -2222,9 +2241,9 @@ window.onload = async function () {
       });
 
       // Dynamically adjust radius for more blur on smaller grids
-      // A smaller grid (e.g., 2x2) gets a larger radius to appear more continuous.
-      // A larger grid (e.g., 16x16) gets a smaller radius.
-      // The radius is increased significantly to ensure a very smooth blend.
+      // a smaller grid (e.g., 2x2) gets a larger radius to appear more continuous.
+      // a larger grid (e.g., 16x16) gets a smaller radius.
+      // the radius is increased significantly to ensure a very smooth blend.
       const radius = 15 + (16 - pointsPerSide) * 5;
       const heatmapCanvas = createHeatmapCanvas(canvasWidth, canvasHeight, canvasPoints, radius);
   
@@ -2619,7 +2638,7 @@ window.onload = async function () {
         if (isSelected) {
           // This filter was selected, show its result area
           item.classList.remove('inactive-while-locked');
-          checkbox.classList.add('hidden');
+          if (control) control.classList.add('hidden');
           display.classList.remove('hidden');
           display.textContent = 'Pending...';
           if (description) description.style.display = '';
@@ -2635,10 +2654,11 @@ window.onload = async function () {
         // Deactivating the box, reset all filters to their default state
         item.classList.remove('locked');
         item.classList.remove('inactive-while-locked');
+        display.classList.remove('map-display'); // Remove special display class
         if (control) control.classList.remove('hidden');
         checkbox.classList.remove('hidden');
         checkbox.disabled = false;
-        display.classList.add('hidden');
+        if (display) display.classList.add('hidden');
         display.textContent = ''; // Clear old results
         if (description) description.style.display = '';
         if (infoBtn) infoBtn.style.display = '';
@@ -2648,16 +2668,26 @@ window.onload = async function () {
 
     if (isBoundingBoxActivated) {
       // Change appearance to "activated"
+      // --- FIX: Disable controls during activation/loading ---
+      bbEditBtn.disabled = true;
+      bbDeleteBtn.disabled = true;
+      bbActivateBtn.textContent = 'Loading...';
+      bbActivateBtn.disabled = true;
+
       currentBoundingBox.rectangle.material = colorActive;
       currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
       console.log('Bounding box activated.');
       await runBoundingBoxAnalysis(); // Run the (dummy) API calls
+
+      // --- FIX: Re-enable controls after loading ---
+      bbEditBtn.disabled = false;
+      bbDeleteBtn.disabled = false;
+      bbActivateBtn.disabled = false;
     } else {
       // Change appearance back to default "active" but not "activated"
       currentBoundingBox.rectangle.material = colorInactive;
       currentBoundingBox.rectangle.outlineColor = colorInactive.withAlpha(1.0);
       console.log('Bounding box deactivated.');
-      // Add logic to hide heatmap entity here if it was shown
       clearTemperatureGrid();
     }
     updateBoundingBoxUI('active'); // Refresh the UI to update the button text
