@@ -2156,6 +2156,7 @@ window.onload = async function () {
       const ctx = canvas.getContext('2d');
 
       // 1. Create a grayscale intensity map using radial gradients
+      ctx.filter = `blur(${Math.round(width / 30)}px)`;
       points.forEach(point => {
           const x = point.x * width;
           const y = point.y * height;
