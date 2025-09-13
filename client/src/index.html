@@ -127,8 +127,14 @@
           </div>
           <p class="bounding-box-description">Draw and manage analysis areas on the map.</p>
           <div class="bounding-box-controls">
-            <button id="bbCreateBoxBtn" class="bounding-box-btn">Box</button>
-            <button id="bbDrawShapeBtn" class="bounding-box-btn">Draw</button>
+            <div class="bounding-box-btn-group">
+              <button id="bbCreateBtn" class="bounding-box-btn">Create</button>
+              <div id="bbCreateOptions" class="bounding-box-options hidden">
+                <button id="bbCreateBoxBtn" class="bounding-box-option-btn"><i class="fas fa-vector-square"></i> Box</button>
+                <button id="bbDrawShapeBtn" class="bounding-box-option-btn"><i class="fas fa-pen-fancy"></i> Draw</button>
+                <button id="bbSelectBoundaryBtn" class="bounding-box-option-btn" disabled><i class="fas fa-map-marked-alt"></i> Boundary</button>
+              </div>
+            </div>
             <button id="bbEditBtn" class="bounding-box-btn" disabled>Edit</button>
             <button id="bbActivateBtn" class="bounding-box-btn" disabled>Activate</button>
             <button id="bbDeleteBtn" class="bounding-box-btn" disabled>Delete</button>

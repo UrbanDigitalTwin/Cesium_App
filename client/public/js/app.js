@@ -1579,6 +1579,8 @@ window.onload = async function () {
   }
 
   // --- Bounding Box Functions ---
+  const bbCreateBtn = document.getElementById('bbCreateBtn');
+  const bbCreateOptions = document.getElementById('bbCreateOptions');
   const bbCreateBoxBtn = document.getElementById('bbCreateBoxBtn');
   const bbDrawShapeBtn = document.getElementById('bbDrawShapeBtn');
   const bbEditBtn = document.getElementById('bbEditBtn');
@@ -1603,14 +1605,13 @@ window.onload = async function () {
     boundingBoxState = newState;
 
     // Reset all buttons to a default state
-    bbCreateBoxBtn.textContent = 'Box';
-    bbDrawShapeBtn.textContent = 'Draw';
+    bbCreateBtn.textContent = 'Create';
     bbTitle.textContent = 'Bounding Box';
     bbDescription.textContent = 'Draw and manage analysis areas on the map.';
     boundingBoxUI.className = 'bounding-box-ui'; // Reset class
 
-    bbCreateBoxBtn.disabled = false;
-    bbDrawShapeBtn.disabled = false;
+    bbCreateBtn.disabled = false;
+    bbCreateOptions.classList.add('hidden'); // Hide options by default
     bbEditBtn.disabled = true;
     bbActivateBtn.disabled = true;
     bbDeleteBtn.disabled = true;
@@ -1625,22 +1626,21 @@ window.onload = async function () {
         bbEditBtn.disabled = true;
         break;
       case 'creating-box':
-        bbCreateBoxBtn.textContent = 'Cancel';
-        bbDrawShapeBtn.disabled = true;
+        bbCreateBtn.textContent = 'Cancel';
+        bbCreateBtn.disabled = false;
         bbTitle.textContent = 'Drawing Bounding Box...';
         bbDescription.textContent = 'Click and drag to draw. Right-click or press Esc to cancel.';
         boundingBoxUI.classList.add('state-creating');
         break;
       case 'drawing-shape':
-        bbDrawShapeBtn.textContent = 'Cancel';
-        bbCreateBoxBtn.disabled = true;
+        bbCreateBtn.textContent = 'Cancel';
+        bbCreateBtn.disabled = false;
         bbTitle.textContent = 'Drawing Shape...';
         bbDescription.textContent = 'Click and drag to draw. Right-click or press Esc to cancel.';
         boundingBoxUI.classList.add('state-creating');
         break;
       case 'active':
-        bbCreateBoxBtn.disabled = true;
-        bbDrawShapeBtn.disabled = true;
+        bbCreateBtn.disabled = true;
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = false;
         bbDeleteBtn.disabled = false;
@@ -1675,9 +1675,8 @@ window.onload = async function () {
         }
         break;
       case 'editing':
-        bbCreateBoxBtn.textContent = 'Save';
-        bbCreateBoxBtn.disabled = false;
-        bbDrawShapeBtn.disabled = true;
+        bbCreateBtn.textContent = 'Save';
+        bbCreateBtn.disabled = false;
         bbEditBtn.textContent = 'Cancel';
         bbEditBtn.disabled = false;
         bbTitle.textContent = 'Editing Bounding Box';
@@ -1690,15 +1689,30 @@ window.onload = async function () {
     }
   }
 
+  bbCreateBtn.onclick = () => {
+    if (boundingBoxState === 'initial') {
+      bbCreateOptions.classList.toggle('hidden');
+    } else if (['creating-box', 'drawing-shape'].includes(boundingBoxState)) {
+      handleCancelBoundingBox();
+    } else if (boundingBoxState === 'editing') {
+      handleSaveBoundingBox();
+    }
+  };
+
+  // Hide create options when clicking outside
+  document.addEventListener('click', function(event) {
+    if (!bbCreateBtn.contains(event.target) && !bbCreateOptions.contains(event.target)) {
+      bbCreateOptions.classList.add('hidden');
+    }
+  });
+
   bbCreateBoxBtn.onclick = () => {
-    if (boundingBoxState === 'initial') handleCreateRectangle();
-    else if (boundingBoxState === 'creating-box') handleCancelBoundingBox();
-    else if (boundingBoxState === 'editing') handleSaveBoundingBox();
+    handleCreateRectangle();
   };
   bbDrawShapeBtn.onclick = () => {
-    if (boundingBoxState === 'initial') handleDrawShape();
-    else if (boundingBoxState === 'drawing-shape') handleCancelBoundingBox();
+    handleDrawShape();
   };
+
   bbEditBtn.onclick = () => {
     if (boundingBoxState === 'active') handleEditBoundingBox();
     else if (boundingBoxState === 'editing') handleCancelEdit();
