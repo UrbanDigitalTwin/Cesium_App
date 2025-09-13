@@ -2332,7 +2332,7 @@ window.onload = async function () {
    * @param {Array<{lon: number, lat: number, value: number}>} dataPoints The temperature data.
    */
   function renderTemperatureHeatmap(bounds, dataPoints) {
-      if (dataPoints.length === 0) return;
+      if (dataPoints.length === 0 || !bounds) return;
   
       // Get the number of points per side to calculate dynamic blur
       const pointsPerSide = Math.sqrt(dataPoints.length);
@@ -2340,7 +2340,8 @@ window.onload = async function () {
       // Normalize data and map to canvas coordinates
       const canvasWidth = 150;
       const canvasHeight = 150;
-      const { west, south, east, north } = bounds;
+      const boundingRectangle = (bounds instanceof Cesium.Rectangle) ? bounds : Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+      const { west, south, east, north } = boundingRectangle;
       const lonRange = east - west;
       const latRange = north - south;
   
@@ -2367,22 +2368,42 @@ window.onload = async function () {
           viewer.entities.remove(temperatureHeatmapEntity);
       }
 
-      temperatureHeatmapEntity = viewer.entities.add({
-          rectangle: {
-              coordinates: bounds,
-              material: new Cesium.ImageMaterialProperty({
-                  image: heatmapCanvas,
-                  transparent: true,
-                  // Use a color property to control opacity.
-                  // The alpha value will be controlled by our slider.
-                  color: new Cesium.Color(1.0, 1.0, 1.0, heatmapOpacity)
-              }),
-              height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
-              heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
-              outline: true,
-              outlineColor: Cesium.Color.WHITE.withAlpha(0.3)
-          }
+      const material = new Cesium.ImageMaterialProperty({
+        image: heatmapCanvas,
+        transparent: true,
+        color: new Cesium.Color(1.0, 1.0, 1.0, heatmapOpacity)
       });
+
+      if (bounds instanceof Cesium.Rectangle) {
+        temperatureHeatmapEntity = viewer.entities.add({
+            rectangle: {
+                coordinates: bounds,
+                material: material,
+                height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+                heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                outline: true,
+                outlineColor: Cesium.Color.WHITE.withAlpha(0.3)
+            }
+        });
+      } else { // It's a PolygonHierarchy
+        temperatureHeatmapEntity = viewer.entities.add({
+            polygon: {
+                hierarchy: bounds,
+                material: material,
+                // STC is needed for texture mapping on polygons
+                stc: new Cesium.CallbackProperty(() => {
+                  return new Cesium.PolygonHierarchy(
+                    bounds.positions,
+                    bounds.holes.map(hole => new Cesium.PolygonHierarchy(hole.positions))
+                  );
+                }, false),
+                height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+                heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                outline: true,
+                outlineColor: Cesium.Color.WHITE.withAlpha(0.3)
+            }
+        });
+      }
   }
   /**
    * Calculates the appropriate height for the heatmap rectangle based on camera altitude.
@@ -2539,11 +2560,7 @@ window.onload = async function () {
     clearTemperatureGrid();
 
     // Create a grid with density based on the bounding box size
-    // The analysis functions need a Rectangle, so we compute it here if we have a polygon. This will be used for rendering.
-    const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
-      bounds :
-      Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
-
+    // Pass the original bounds (polygon or rect) to generate points *within* the shape
     const gridPoints = createPointGrid(bounds); // Pass the original bounds (polygon or rect) to generate points *within* the shape
     let pointsProcessed = 0;
     const temperatureDataPoints = [];
@@ -2596,7 +2613,7 @@ window.onload = async function () {
     temperatureAnalysisRunning = false;
 
     if (temperatureDataPoints.length > 0) {
-      renderTemperatureHeatmap(analysisBounds, temperatureDataPoints);
+      renderTemperatureHeatmap(bounds, temperatureDataPoints);
 
       const temps = temperatureDataPoints.map(p => p.value);
       const minTemp = Math.min(...temps);
