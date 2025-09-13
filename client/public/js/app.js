@@ -3049,11 +3049,14 @@ window.onload = async function () {
   function updateHeatmapOpacity(opacity, updateSlider = false, fromSlider = false) {
     heatmapOpacity = opacity;
 
-    // Update the Cesium entity
-    if (temperatureHeatmapEntity && temperatureHeatmapEntity.rectangle.material.color) {
-      temperatureHeatmapEntity.rectangle.material.color.setValue(
-        new Cesium.Color(1.0, 1.0, 1.0, opacity)
-      );
+    // Update the Cesium entity, checking for both rectangle and polygon
+    if (temperatureHeatmapEntity) {
+      const entityGraphics = temperatureHeatmapEntity.rectangle || temperatureHeatmapEntity.polygon;
+      if (entityGraphics && entityGraphics.material && entityGraphics.material.color) {
+        entityGraphics.material.color.setValue(
+          new Cesium.Color(1.0, 1.0, 1.0, opacity)
+        );
+      }
     }
 
     // Update the UI elements
