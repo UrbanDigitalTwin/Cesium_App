@@ -132,7 +132,7 @@
               <div id="bbCreateOptions" class="bounding-box-options hidden">
                 <button id="bbCreateBoxBtn" class="bounding-box-option-btn"><i class="fas fa-vector-square"></i> Box</button>
                 <button id="bbDrawShapeBtn" class="bounding-box-option-btn"><i class="fas fa-pen-fancy"></i> Draw</button>
-                <button id="bbSelectBoundaryBtn" class="bounding-box-option-btn" disabled><i class="fas fa-map-marked-alt"></i> Boundary</button>
+                <button id="bbSelectBoundaryBtn" class="bounding-box-option-btn"><i class="fas fa-map-marked-alt"></i> Boundary</button>
               </div>
             </div>
             <button id="bbEditBtn" class="bounding-box-btn" disabled>Edit</button>
@@ -167,6 +167,9 @@
       </div>
       <div id="cesiumMapWrapper">
         <div id="cesiumContainer"></div>
+        <!-- Modal Overlay -->
+        <div id="modalOverlay" class="modal-overlay hidden"></div>
+
         <button id="maximizeMapBtn" title="Maximize/Restore Map">
           &#x26F6;
         </button>
@@ -183,6 +186,22 @@
       <span class="hamburger-bar"></span>
     </button>
     <button id="sidebarRestoreBtn" title="Restore Menu">&#9776;</button>
+
+    <!-- Bounding Box Boundary Selection Dialog -->
+    <div id="bbBoundaryOverlay" class="modal-overlay hidden"></div>
+    <div id="bbBoundaryDialog" class="bb-boundary-dialog hidden">
+      <div class="bb-boundary-header">
+        <h4>Select a Boundary</h4>
+        <button id="bbBoundaryCloseBtn" class="bb-boundary-close-btn">&times;</button>
+      </div>
+      <div class="bb-boundary-content">
+        <input type="text" id="bbBoundarySearch" class="bb-boundary-search" placeholder="Search states or counties...">
+        <div id="bbBoundaryList" class="bb-boundary-list">
+          <!-- Content will be populated by app.js -->
+          <p>Loading boundaries...</p>
+        </div>
+      </div>
+    </div>
 
     <div id="imageModal" class="modal" style="display: none">
       <span class="modal-close" id="modalCloseBtn">&times;</span>

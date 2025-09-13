@@ -37,6 +37,10 @@ window.onload = async function () {
   let isDraggingHandle = false;
   let cameraPanRequest = null;
 
+  // --- Boundary Selection Variables ---
+  let usStatesData = [];
+  let usCountiesData = [];
+
   // --- Weather Alerts Variables ---
   let weatherAlertEntities = [];
   let weatherAlertsVisible = false;
@@ -1583,6 +1587,12 @@ window.onload = async function () {
   const bbCreateOptions = document.getElementById('bbCreateOptions');
   const bbCreateBoxBtn = document.getElementById('bbCreateBoxBtn');
   const bbDrawShapeBtn = document.getElementById('bbDrawShapeBtn');
+  const bbSelectBoundaryBtn = document.getElementById('bbSelectBoundaryBtn');
+  const bbBoundaryDialog = document.getElementById('bbBoundaryDialog');
+  const bbBoundaryOverlay = document.getElementById('bbBoundaryOverlay');
+  const bbBoundaryCloseBtn = document.getElementById('bbBoundaryCloseBtn');
+  const bbBoundarySearch = document.getElementById('bbBoundarySearch');
+  const bbBoundaryList = document.getElementById('bbBoundaryList');
   const bbEditBtn = document.getElementById('bbEditBtn');
   const bbActivateBtn = document.getElementById('bbActivateBtn');
   const bbDeleteBtn = document.getElementById('bbDeleteBtn');
@@ -1711,6 +1721,9 @@ window.onload = async function () {
   };
   bbDrawShapeBtn.onclick = () => {
     handleDrawShape();
+  };
+  bbSelectBoundaryBtn.onclick = () => {
+    handleSelectBoundary();
   };
 
   bbEditBtn.onclick = () => {
@@ -1860,6 +1873,273 @@ window.onload = async function () {
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
   }
 
+  function handleSelectBoundary() {
+    bbBoundaryOverlay.classList.remove('hidden');
+    bbBoundaryDialog.classList.remove('hidden');
+    bbCreateOptions.classList.add('hidden');
+    populateBoundaryList(); // Initial population
+
+    // Focus the search input after a short delay to ensure it's visible and ready.
+    setTimeout(() => {
+      bbBoundarySearch.focus();
+    }, 100);
+  }
+
+  bbBoundaryCloseBtn.onclick = () => {
+    bbBoundaryOverlay.classList.add('hidden');
+    bbBoundaryDialog.classList.add('hidden');
+  };
+
+  // --- Keyboard Navigation for Boundary Dialog ---
+  function updateBoundaryHighlight(newItem) {
+    const currentHighlighted = bbBoundaryList.querySelector('.keyboard-highlight');
+    if (currentHighlighted) {
+      currentHighlighted.classList.remove('keyboard-highlight');
+    }
+    if (newItem) {
+      newItem.classList.add('keyboard-highlight');
+      // Ensure the highlighted item is visible within the scrollable list
+      newItem.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  bbBoundarySearch.addEventListener('keydown', (e) => {
+    const items = bbBoundaryList.querySelectorAll('.bb-boundary-item');
+    if (items.length === 0) return;
+
+    const currentHighlighted = bbBoundaryList.querySelector('.keyboard-highlight');
+    let currentIndex = -1;
+    if (currentHighlighted) {
+      currentIndex = Array.from(items).indexOf(currentHighlighted);
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIndex = (currentIndex + 1) % items.length;
+      updateBoundaryHighlight(items[nextIndex]);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevIndex = (currentIndex - 1 + items.length) % items.length;
+      updateBoundaryHighlight(items[prevIndex]);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (currentHighlighted) {
+        currentHighlighted.click(); // Trigger the existing click handler
+      }
+    }
+  });
+
+  // Add a keydown listener to the dialog itself for the Escape key
+  bbBoundaryDialog.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      bbBoundaryCloseBtn.click();
+    }
+  });
+
+  // When the dialog is opened, also listen for Escape on the document
+  const originalHandleSelectBoundary = handleSelectBoundary;
+  handleSelectBoundary = function() {
+    originalHandleSelectBoundary();
+    const escapeHandler = (e) => {
+      if (e.key === 'Escape') {
+        bbBoundaryCloseBtn.click();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
+    // Clean up listener when dialog closes
+    const originalClose = bbBoundaryCloseBtn.onclick;
+    bbBoundaryCloseBtn.onclick = () => {
+      originalClose();
+      document.removeEventListener('keydown', escapeHandler);
+    };
+  };
+
+  bbBoundarySearch.oninput = (e) => {
+    populateBoundaryList(e.target.value.toLowerCase());
+  };
+
+  async function fetchBoundaryData() {
+    try {
+      // Use publicly hosted GeoJSON files as a free API endpoint.
+      const statesUrl = 'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json';
+      const countiesUrl = 'https://raw.githubusercontent.com/plotly/datasets/master/geojson-counties-fips.json';
+
+      const [statesRes, countiesRes] = await Promise.all([
+        fetch(statesUrl),
+        fetch(countiesUrl)
+      ]);
+
+      if (!statesRes.ok || !countiesRes.ok) {
+        throw new Error('Failed to load boundary data from the public API.');
+      }
+      const statesJson = await statesRes.json();
+      const countiesJson = await countiesRes.json();
+
+      // Helper to get state name from FIPS code, as the county data uses FIPS.
+      const stateFipsMap = new Map(statesJson.features.map(f => [f.id, f.properties.name]));
+
+      // Adapt the county data to include STATE_NAME, which our app expects.
+      countiesJson.features.forEach(feature => {
+        const stateFips = feature.properties.STATE;
+        feature.properties.STATE_NAME = stateFipsMap.get(stateFips) || 'Unknown';
+      });
+
+      // Sort Florida to the top
+      usStatesData = statesJson.features.sort((a, b) => {
+        if (a.properties.name === 'Florida') return -1;
+        if (b.properties.name === 'Florida') return 1;
+        return a.properties.name.localeCompare(b.properties.name);
+      });
+
+      // Separate Florida counties and sort them, then combine with other sorted counties
+      const floridaCounties = countiesJson.features
+        .filter(f => f.properties.STATE_NAME === 'Florida')
+        .sort((a, b) => a.properties.NAME.localeCompare(b.properties.NAME));
+      
+      const otherCounties = countiesJson.features
+        .filter(f => f.properties.STATE_NAME !== 'Florida')
+        .sort((a, b) => a.properties.NAME.localeCompare(b.properties.NAME));
+
+      usCountiesData = [...floridaCounties, ...otherCounties];
+
+      console.log('Boundary data loaded successfully.');
+    } catch (error) {
+      console.error(error);
+      bbBoundaryList.innerHTML = `<p style="color: #ff5252;">${error.message}</p>`;
+    }
+  }
+
+  function populateBoundaryList(searchTerm = '') {
+    if (usStatesData.length === 0) {
+      bbBoundaryList.innerHTML = '<p>Loading boundaries...</p>';
+      return;
+    }
+
+    const filteredStates = usStatesData.filter(f => f.properties.name.toLowerCase().includes(searchTerm));
+    const filteredCounties = usCountiesData.filter(f => 
+      f.properties.NAME.toLowerCase().includes(searchTerm) || 
+      f.properties.STATE_NAME.toLowerCase().includes(searchTerm)
+    );
+
+    let html = '';
+
+    if (filteredStates.length > 0) {
+      html += '<h5 class="bb-boundary-category">States</h5>';
+      html += filteredStates.map(feature => 
+        `<button class="bb-boundary-item" data-type="state" data-name="${feature.properties.name}">
+          ${feature.properties.name}
+        </button>`
+      ).join('');
+    }
+
+    if (filteredCounties.length > 0) {
+      html += '<h5 class="bb-boundary-category">Counties</h5>';
+      html += filteredCounties.map(feature => 
+        `<button class="bb-boundary-item" data-type="county" data-name="${feature.properties.NAME}" data-state="${feature.properties.STATE_NAME}">
+          ${feature.properties.NAME}, ${feature.properties.STATE_NAME}
+        </button>`
+      ).join('');
+    }
+
+    bbBoundaryList.innerHTML = html || '<p>No boundaries found.</p>';
+
+    // Highlight the first item for keyboard navigation
+    const firstItem = bbBoundaryList.querySelector('.bb-boundary-item');
+    if (firstItem) {
+      updateBoundaryHighlight(firstItem);
+    }
+  }
+
+  bbBoundaryList.onclick = async (e) => {
+    const target = e.target.closest('.bb-boundary-item');
+    if (!target) return;
+
+    const { type, name, state } = target.dataset;
+    bbBoundaryDialog.classList.add('hidden');
+    bbBoundaryOverlay.classList.add('hidden');
+    bbBoundarySearch.value = '';
+
+    let feature;
+    if (type === 'state') {
+      feature = usStatesData.find(f => f.properties.name === name);
+    } else {
+      feature = usCountiesData.find(f => f.properties.NAME === name && f.properties.STATE_NAME === state);
+    }
+
+    if (!feature) {
+      console.error('Selected boundary feature not found.');
+      return;
+    }
+
+    const geoJsonDataSource = await Cesium.GeoJsonDataSource.load(feature);
+    const entity = geoJsonDataSource.entities.values[0];
+
+    // Extract polygon hierarchy and finalize the bounding box
+    boundingBoxCoordinates = entity.polygon.hierarchy.getValue();
+    finalizeBoundingBox();
+  };
+
+  function handleDrawShape() {
+    updateBoundingBoxUI('drawing-shape');
+    viewer.canvas.style.cursor = 'crosshair';
+
+    let isDrawing = false;
+    let positions = [];
+
+    boundingBoxHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    document.addEventListener('keydown', escapeKeyListener);
+
+    boundingBoxHandler.setInputAction(function (event) {
+        isDrawing = true;
+        viewer.scene.screenSpaceCameraController.enableInputs = false;
+        const cartesian = viewer.scene.pickPosition(event.position);
+        if (Cesium.defined(cartesian)) {
+            positions.push(cartesian);
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    boundingBoxHandler.setInputAction(function (event) {
+        if (isDrawing) {
+            const cartesian = viewer.scene.pickPosition(event.endPosition);
+            if (Cesium.defined(cartesian)) {
+                positions.push(cartesian);
+                if (tempBoundingBox) {
+                    // This is a bit of a hack to force update of the polyline
+                    tempBoundingBox.polyline.positions = new Cesium.CallbackProperty(() => positions, false);
+                } else {
+                    tempBoundingBox = viewer.entities.add({
+                        polyline: {
+                            positions: new Cesium.CallbackProperty(() => positions, false),
+                            width: 3,
+                            material: colorCreating,
+                            clampToGround: true
+                        }
+                    });
+                }
+            }
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    boundingBoxHandler.setInputAction(function () {
+        if (!isDrawing || positions.length < 3) {
+            handleCancelBoundingBox();
+            return;
+        }
+        isDrawing = false;
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+
+        // Store the polygon hierarchy instead of raw coordinates
+        boundingBoxCoordinates = new Cesium.PolygonHierarchy(positions);
+        finalizeBoundingBox();
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+
+    // Right click cancels the drawing
+    boundingBoxHandler.setInputAction(function () {
+        handleCancelBoundingBox();
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+  }
+
   function finalizeBoundingBox() {
     bbFilterDialog.classList.remove('hidden'); // Show the filter dialog
     document.removeEventListener('keydown', escapeKeyListener);
@@ -1929,6 +2209,12 @@ window.onload = async function () {
     updateBoundingBoxUI('active');
   }
 
+  // Add click listener to the overlay to close the dialog
+  if (bbBoundaryOverlay) {
+    bbBoundaryOverlay.onclick = () => {
+      bbBoundaryCloseBtn.onclick(); // Reuse the existing close logic
+    };
+  }
   function handleCancelBoundingBox() {
     bbFilterDialog.classList.add('hidden'); // Hide the filter dialog
     viewer.scene.screenSpaceCameraController.enableInputs = true; // Re-enable map controls
@@ -3393,4 +3679,5 @@ window.onload = async function () {
   // Initial setup calls
   initializeFilterDialog();
   updateBoundingBoxUI('initial');
+  fetchBoundaryData();
 };
