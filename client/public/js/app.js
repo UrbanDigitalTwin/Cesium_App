@@ -24,7 +24,7 @@ window.onload = async function () {
   let emEventsVisible = false;
 
   // --- Bounding Box Variables ---
-  let boundingBoxState = 'initial'; // States: 'initial', 'creating', 'active', 'editing'
+  let boundingBoxState = 'initial'; // States: 'initial', 'creating-box', 'drawing-shape', 'active', 'editing'
   let currentBoundingBox = null;
   let boundingBoxHandler = null;
   let tempBoundingBox = null;
@@ -1579,7 +1579,8 @@ window.onload = async function () {
   }
 
   // --- Bounding Box Functions ---
-  const bbCreateBtn = document.getElementById('bbCreateBtn');
+  const bbCreateBoxBtn = document.getElementById('bbCreateBoxBtn');
+  const bbDrawShapeBtn = document.getElementById('bbDrawShapeBtn');
   const bbEditBtn = document.getElementById('bbEditBtn');
   const bbActivateBtn = document.getElementById('bbActivateBtn');
   const bbDeleteBtn = document.getElementById('bbDeleteBtn');
@@ -1602,12 +1603,14 @@ window.onload = async function () {
     boundingBoxState = newState;
 
     // Reset all buttons to a default state
-    bbCreateBtn.textContent = 'Create';
+    bbCreateBoxBtn.textContent = 'Box';
+    bbDrawShapeBtn.textContent = 'Draw';
     bbTitle.textContent = 'Bounding Box';
     bbDescription.textContent = 'Draw and manage analysis areas on the map.';
     boundingBoxUI.className = 'bounding-box-ui'; // Reset class
 
-    bbCreateBtn.disabled = false;
+    bbCreateBoxBtn.disabled = false;
+    bbDrawShapeBtn.disabled = false;
     bbEditBtn.disabled = true;
     bbActivateBtn.disabled = true;
     bbDeleteBtn.disabled = true;
@@ -1619,15 +1622,25 @@ window.onload = async function () {
     switch (boundingBoxState) {
       case 'initial':
         boundingBoxUI.classList.add('state-initial');
+        bbEditBtn.disabled = true;
         break;
-      case 'creating':
-        bbCreateBtn.textContent = 'Cancel';
+      case 'creating-box':
+        bbCreateBoxBtn.textContent = 'Cancel';
+        bbDrawShapeBtn.disabled = true;
         bbTitle.textContent = 'Drawing Bounding Box...';
         bbDescription.textContent = 'Click and drag to draw. Right-click or press Esc to cancel.';
         boundingBoxUI.classList.add('state-creating');
         break;
+      case 'drawing-shape':
+        bbDrawShapeBtn.textContent = 'Cancel';
+        bbCreateBoxBtn.disabled = true;
+        bbTitle.textContent = 'Drawing Shape...';
+        bbDescription.textContent = 'Click and drag to draw. Right-click or press Esc to cancel.';
+        boundingBoxUI.classList.add('state-creating');
+        break;
       case 'active':
-        bbCreateBtn.disabled = true;
+        bbCreateBoxBtn.disabled = true;
+        bbDrawShapeBtn.disabled = true;
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = false;
         bbDeleteBtn.disabled = false;
@@ -1640,6 +1653,11 @@ window.onload = async function () {
         }
 
         if (isBoundingBoxActivated) {
+          // If it's a polygon, editing is not allowed.
+          if (currentBoundingBox && currentBoundingBox.polygon) {
+            bbEditBtn.disabled = true;
+            bbEditBtn.title = 'Editing is not supported for drawn shapes.';
+          }
           bbActivateBtn.textContent = 'Deactivate';
           bbTitle.textContent = 'Bounding Box Active';
           bbDescription.textContent = 'Box is active. Filtering or analysis can be performed.';
@@ -1648,13 +1666,20 @@ window.onload = async function () {
           bbActivateBtn.textContent = 'Activate';
           bbTitle.textContent = 'Bounding Box Set';
           bbDescription.textContent = 'Box is ready. You can now edit, activate, or delete it.';
+          // If it's a polygon, editing is not allowed.
+          if (currentBoundingBox && currentBoundingBox.polygon) {
+            bbEditBtn.disabled = true;
+            bbEditBtn.title = 'Editing is not supported for drawn shapes.';
+          }
           boundingBoxUI.classList.add('state-inactive');
         }
         break;
       case 'editing':
-        bbCreateBtn.textContent = 'Save';
-        bbCreateBtn.disabled = false;
+        bbCreateBoxBtn.textContent = 'Save';
+        bbCreateBoxBtn.disabled = false;
+        bbDrawShapeBtn.disabled = true;
         bbEditBtn.textContent = 'Cancel';
+        bbEditBtn.disabled = false;
         bbTitle.textContent = 'Editing Bounding Box';
         bbDescription.textContent = 'Adjust the corners of the box. Click Save when done.';
         boundingBoxUI.classList.add('state-creating'); // Use same color as creating
@@ -1665,10 +1690,14 @@ window.onload = async function () {
     }
   }
 
-  bbCreateBtn.onclick = () => {
-    if (boundingBoxState === 'initial') handleCreateBoundingBox();
-    else if (boundingBoxState === 'creating') handleCancelBoundingBox();
+  bbCreateBoxBtn.onclick = () => {
+    if (boundingBoxState === 'initial') handleCreateRectangle();
+    else if (boundingBoxState === 'creating-box') handleCancelBoundingBox();
     else if (boundingBoxState === 'editing') handleSaveBoundingBox();
+  };
+  bbDrawShapeBtn.onclick = () => {
+    if (boundingBoxState === 'initial') handleDrawShape();
+    else if (boundingBoxState === 'drawing-shape') handleCancelBoundingBox();
   };
   bbEditBtn.onclick = () => {
     if (boundingBoxState === 'active') handleEditBoundingBox();
@@ -1684,8 +1713,8 @@ window.onload = async function () {
     }
   };
 
-  function handleCreateBoundingBox() {
-    updateBoundingBoxUI('creating');
+  function handleCreateRectangle() {
+    updateBoundingBoxUI('creating-box');
     console.log('Starting bounding box creation...');
     viewer.canvas.style.cursor = 'crosshair';
 
@@ -1757,6 +1786,66 @@ window.onload = async function () {
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
   }
 
+  function handleDrawShape() {
+    updateBoundingBoxUI('drawing-shape');
+    viewer.canvas.style.cursor = 'crosshair';
+
+    let isDrawing = false;
+    let positions = [];
+
+    boundingBoxHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+    document.addEventListener('keydown', escapeKeyListener);
+
+    boundingBoxHandler.setInputAction(function (event) {
+        isDrawing = true;
+        viewer.scene.screenSpaceCameraController.enableInputs = false;
+        const cartesian = viewer.scene.pickPosition(event.position);
+        if (Cesium.defined(cartesian)) {
+            positions.push(cartesian);
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    boundingBoxHandler.setInputAction(function (event) {
+        if (isDrawing) {
+            const cartesian = viewer.scene.pickPosition(event.endPosition);
+            if (Cesium.defined(cartesian)) {
+                positions.push(cartesian);
+                if (tempBoundingBox) {
+                    // This is a bit of a hack to force update of the polyline
+                    tempBoundingBox.polyline.positions = new Cesium.CallbackProperty(() => positions, false);
+                } else {
+                    tempBoundingBox = viewer.entities.add({
+                        polyline: {
+                            positions: new Cesium.CallbackProperty(() => positions, false),
+                            width: 3,
+                            material: colorCreating,
+                            clampToGround: true
+                        }
+                    });
+                }
+            }
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    boundingBoxHandler.setInputAction(function () {
+        if (!isDrawing || positions.length < 3) {
+            handleCancelBoundingBox();
+            return;
+        }
+        isDrawing = false;
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+
+        // Store the polygon hierarchy instead of raw coordinates
+        boundingBoxCoordinates = new Cesium.PolygonHierarchy(positions);
+        finalizeBoundingBox();
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+
+    // Right click cancels the drawing
+    boundingBoxHandler.setInputAction(function () {
+        handleCancelBoundingBox();
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+  }
+
   function finalizeBoundingBox() {
     bbFilterDialog.classList.remove('hidden'); // Show the filter dialog
     document.removeEventListener('keydown', escapeKeyListener);
@@ -1775,35 +1864,54 @@ window.onload = async function () {
       viewer.entities.remove(currentBoundingBox);
     }
 
-    const rect = Cesium.Rectangle.fromCartesianArray(boundingBoxCoordinates);
-    currentBoundingBox = viewer.entities.add({
-      rectangle: {
-        coordinates: rect,
-        material: colorInactive,
-        height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
-        heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
-        outline: true,
-        outlineColor: colorInactive.withAlpha(1.0),
-        outlineWidth: 2
-      }
-    });
+    if (Array.isArray(boundingBoxCoordinates)) { // It's a rectangle
+        const rect = Cesium.Rectangle.fromCartesianArray(boundingBoxCoordinates);
+        currentBoundingBox = viewer.entities.add({
+            rectangle: {
+                coordinates: rect,
+                material: colorInactive,
+                height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+                heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                outline: true,
+                outlineColor: colorInactive.withAlpha(1.0),
+                outlineWidth: 2
+            }
+        });
 
-    // Pad the rectangle slightly to zoom out a bit
-    const zoomOutFactor = 0.2; // 20% padding
-    const paddedRect = Cesium.Rectangle.clone(rect);
-    paddedRect.west -= rect.width * zoomOutFactor;
-    paddedRect.east += rect.width * zoomOutFactor;
-    paddedRect.south -= rect.height * zoomOutFactor;
-    paddedRect.north += rect.height * zoomOutFactor;
+        const zoomOutFactor = 0.2;
+        const paddedRect = Cesium.Rectangle.clone(rect);
+        paddedRect.west -= rect.width * zoomOutFactor;
+        paddedRect.east += rect.width * zoomOutFactor;
+        paddedRect.south -= rect.height * zoomOutFactor;
+        paddedRect.north += rect.height * zoomOutFactor;
 
-    // Animate camera to focus on the new bounding box
-    viewer.camera.flyTo({
-      // Use the padded rectangle for camera destination to zoom out slightly
-      destination: paddedRect,
-      duration: 1.5 // Animation duration in seconds
-    });
+        viewer.camera.flyTo({
+            destination: paddedRect,
+            duration: 1.5
+        });
+        console.log('Bounding box finalized:', rect);
+    } else { // It's a polygon
+        currentBoundingBox = viewer.entities.add({
+            polygon: {
+                hierarchy: boundingBoxCoordinates,
+                material: colorInactive,
+                height: new Cesium.CallbackProperty(getDynamicHeatmapHeight, false),
+                heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+                outline: true,
+                outlineColor: colorInactive.withAlpha(1.0),
+                outlineWidth: 2
+            }
+        });
 
-    console.log('Bounding box finalized:', rect);
+        // Fly to the bounding sphere of the polygon
+        const boundingSphere = Cesium.BoundingSphere.fromPoints(boundingBoxCoordinates.positions);
+        viewer.camera.flyToBoundingSphere(boundingSphere, {
+            duration: 1.5,
+            offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-90), boundingSphere.radius * 1.5)
+        });
+        console.log('Bounding shape finalized.');
+    }
+
     updateBoundingBoxUI('active');
   }
 
@@ -1827,7 +1935,7 @@ window.onload = async function () {
   }
 
   function createEditHandles() {
-    if (!currentBoundingBox) return;
+    if (!currentBoundingBox || !currentBoundingBox.rectangle) return;
 
     const rect = currentBoundingBox.rectangle.coordinates.getValue();
     const positions = [
@@ -1891,7 +1999,7 @@ window.onload = async function () {
   }
 
   function handleEditBoundingBox() {
-    if (!currentBoundingBox) return;
+    if (!currentBoundingBox || !currentBoundingBox.rectangle) return;
 
     // Store the current state, then minimize the filter dialog and hide the toggle button
     wasFilterDialogMaximized = !bbFilterDialog.classList.contains('minimized');
@@ -2002,7 +2110,7 @@ window.onload = async function () {
     viewer.canvas.style.cursor = 'default';
 
     // Finalize the new coordinates
-    if (currentBoundingBox) {
+    if (currentBoundingBox && currentBoundingBox.rectangle) {
       const finalRect = currentBoundingBox.rectangle.coordinates.getValue();
       boundingBoxCoordinates = [
         Cesium.Cartesian3.fromRadians(finalRect.west, finalRect.south),
@@ -2043,7 +2151,7 @@ window.onload = async function () {
     viewer.canvas.style.cursor = 'default';
 
     // Revert to original coordinates
-    if (currentBoundingBox && originalBoundingBoxCartesians) {
+    if (currentBoundingBox && currentBoundingBox.rectangle && originalBoundingBoxCartesians) {
       // Revert to the static, original rectangle
       currentBoundingBox.rectangle.coordinates = originalBoundingBoxCartesians;
       resetAllFiltersUI(); // Ensure filter UI is reset
@@ -2307,15 +2415,42 @@ window.onload = async function () {
   }
 
   /**
+   * Checks if a point is inside a polygon using the Ray-Casting algorithm.
+   * This is a reliable, standard algorithm that does not depend on a specific Cesium version.
+   * @param {Cesium.Cartographic} point The point to check (longitude/latitude in radians).
+   * @param {Array<Cesium.Cartographic>} polygonVertices An array of the polygon's vertices.
+   * @returns {boolean} True if the point is inside the polygon.
+   */
+  function isPointInPolygon(point, polygonVertices) {
+    const x = point.longitude;
+    const y = point.latitude;
+    let isInside = false;
+
+    for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
+      const xi = polygonVertices[i].longitude;
+      const yi = polygonVertices[i].latitude;
+      const xj = polygonVertices[j].longitude;
+      const yj = polygonVertices[j].latitude;
+
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+      if (intersect) {
+        isInside = !isInside;
+      }
+    }
+    return isInside;
+  }
+  /**
    * Creates a grid of points within a given bounding box.
    * The density of the grid is determined dynamically by the size of the box.
    * unless a fixed number of points is specified.
-   * @param {Cesium.Rectangle} bounds The bounding box.
+   * @param {Cesium.Rectangle | Cesium.PolygonHierarchy} bounds The bounding box or polygon.
    * @param {number|null} [fixedPointsPerSide=null] If provided, creates a grid of this size (e.g., 3 for a 3x3 grid).
    * @returns {Array<{lon: number, lat: number}>} An array of longitude/latitude points.
    */
   function createPointGrid(bounds, fixedPointsPerSide = null) {
-    const minPointsPerSide = 5;  // For small boxes (< 50 sq mi)
+    let minPointsPerSide = 5;
     const maxPointsPerSide = 16; // For large boxes (> 1000 sq mi)
 
     // Area thresholds in square miles
@@ -2327,8 +2462,17 @@ window.onload = async function () {
     const metersPerMile = 1609.34;
     const sqMetersPerSqMile = metersPerMile * metersPerMile;
 
-    const areaMeters2 = (bounds.east - bounds.west) * (R * R) * Math.abs(Math.sin(bounds.north) - Math.sin(bounds.south));
+    const boundingRectangle = (bounds instanceof Cesium.Rectangle) ?
+      bounds :
+      Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+
+    const areaMeters2 = (boundingRectangle.east - boundingRectangle.west) * (R * R) * Math.abs(Math.sin(boundingRectangle.north) - Math.sin(boundingRectangle.south));
     const areaMiles2 = areaMeters2 / sqMetersPerSqMile;
+
+    // If it's a polygon, we might want a denser grid to capture its shape.
+    if (!(bounds instanceof Cesium.Rectangle)) {
+        minPointsPerSide = 8;
+    }
 
     let pointsPerSide = fixedPointsPerSide;
 
@@ -2344,17 +2488,28 @@ window.onload = async function () {
     }
     }
 
-    const { west, south, east, north } = bounds;
+    const { west, south, east, north } = boundingRectangle;
     const points = [];
     const lonStep = pointsPerSide > 1 ? (east - west) / (pointsPerSide - 1) : 0;
     const latStep = pointsPerSide > 1 ? (north - south) / (pointsPerSide - 1) : 0;
 
+    const isPolygon = !(bounds instanceof Cesium.Rectangle);
+    const cartographicPoints = isPolygon ? bounds.positions.map(p => Cesium.Cartographic.fromCartesian(p)) : [];
+
     for (let i = 0; i < pointsPerSide; i++) {
       for (let j = 0; j < pointsPerSide; j++) {
-        points.push({
-          lon: Cesium.Math.toDegrees(west + (j * lonStep)),
-          lat: Cesium.Math.toDegrees(south + (i * latStep))
-        });
+        const lon = Cesium.Math.toDegrees(west + (j * lonStep));
+        const lat = Cesium.Math.toDegrees(south + (i * latStep));
+
+        if (isPolygon) {
+            // Check if the point is inside the polygon
+            const pointCartographic = Cesium.Cartographic.fromDegrees(lon, lat);
+            if (isPointInPolygon(pointCartographic, cartographicPoints)) {
+                points.push({ lon, lat });
+            }
+        } else {
+            points.push({ lon, lat });
+        }
       }
     }
     return points;
@@ -2384,7 +2539,12 @@ window.onload = async function () {
     clearTemperatureGrid();
 
     // Create a grid with density based on the bounding box size
-    const gridPoints = createPointGrid(bounds);
+    // The analysis functions need a Rectangle, so we compute it here if we have a polygon. This will be used for rendering.
+    const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
+      bounds :
+      Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+
+    const gridPoints = createPointGrid(bounds); // Pass the original bounds (polygon or rect) to generate points *within* the shape
     let pointsProcessed = 0;
     const temperatureDataPoints = [];
 
@@ -2436,7 +2596,7 @@ window.onload = async function () {
     temperatureAnalysisRunning = false;
 
     if (temperatureDataPoints.length > 0) {
-      renderTemperatureHeatmap(bounds, temperatureDataPoints);
+      renderTemperatureHeatmap(analysisBounds, temperatureDataPoints);
 
       const temps = temperatureDataPoints.map(p => p.value);
       const minTemp = Math.min(...temps);
@@ -2461,7 +2621,12 @@ window.onload = async function () {
    */
   async function fetchWeatherAlerts(bounds) {
     clearWeatherAlerts(); // Clear previous alerts
-    const center = Cesium.Rectangle.center(bounds);
+
+    // The analysis functions need a Rectangle, so we compute it here if we have a polygon.
+    const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
+      bounds :
+      Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+    const center = Cesium.Rectangle.center(analysisBounds);
     const centerLat = Cesium.Math.toDegrees(center.latitude);
     const centerLon = Cesium.Math.toDegrees(center.longitude);
 
@@ -2613,7 +2778,12 @@ window.onload = async function () {
    * @returns {Promise<object>} An object containing the aggregated aviation data or an error message.
    */
   async function fetchAviationData(bounds) {
-    const gridPoints = createPointGrid(bounds, 3); // Use a fixed 3x3 grid for faster, sparse sampling
+    // The analysis functions need a Rectangle, so we compute it here if we have a polygon.
+    const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
+      bounds :
+      Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+      
+    const gridPoints = createPointGrid(analysisBounds, 3); // Use a fixed 3x3 grid for faster, sparse sampling
     let pointsProcessed = 0;
     const aviationData = {
       visibility: [],
@@ -2946,7 +3116,12 @@ window.onload = async function () {
   // Main analysis runner
   async function runBoundingBoxAnalysis() {
     if (!currentBoundingBox) return;
-    const bounds = currentBoundingBox.rectangle.coordinates.getValue();
+    let bounds;
+    if (currentBoundingBox.rectangle) {
+        bounds = currentBoundingBox.rectangle.coordinates.getValue();
+    } else if (currentBoundingBox.polygon) {
+        bounds = currentBoundingBox.polygon.hierarchy.getValue();
+    }
 
     for (const filterId in filterState) {
       if (filterState[filterId]) { // If filter is checked
@@ -3018,13 +3193,21 @@ window.onload = async function () {
       bbDeleteBtn.disabled = true;
       bbActivateBtn.textContent = 'Loading...';
       bbActivateBtn.disabled = true;
+      
+      if (currentBoundingBox.rectangle) {
+        currentBoundingBox.rectangle.material = colorActive;
+        currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
+      } else if (currentBoundingBox.polygon) {
+        currentBoundingBox.polygon.material = colorActive;
+        currentBoundingBox.polygon.outlineColor = colorActive.withAlpha(1.0);
+      }
 
-      currentBoundingBox.rectangle.material = colorActive;
-      currentBoundingBox.rectangle.outlineColor = colorActive.withAlpha(1.0);
       console.log('Bounding box activated.');
       await runBoundingBoxAnalysis(); // Run the (dummy) API calls
 
       // --- FIX: Re-enable controls after loading ---
+      // Disable edit for polygons
+      bbEditBtn.disabled = !!currentBoundingBox.polygon;
       bbEditBtn.disabled = false;
       bbDeleteBtn.disabled = false;
       bbActivateBtn.disabled = false;

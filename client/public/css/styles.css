@@ -1268,12 +1268,21 @@ html, body {
   .bounding-box-controls {
   display: flex;
   justify-content: space-around;
-  gap: 10px;
+  gap: 8px;
 }
 .bounding-box-btn {
   background-color: #007bff;
   color: #fff;
   border: none;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+  flex-grow: 1;
+  text-align: center;
+}
+.bounding-box-btn#bbCreateBoxBtn, .bounding-box-btn#bbDrawShapeBtn {
+  flex-grow: 0.5;
   padding: 8px 12px;
   border-radius: 4px;
   cursor: pointer;
