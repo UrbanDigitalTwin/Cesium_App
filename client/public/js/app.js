@@ -138,6 +138,13 @@ window.onload = async function () {
             index === 0 ? "active" : ""
           }" data-index="${index}">
             <img src="${img}" class="carousel-image" />
+            <button class="detect-btn" onclick="detectImage(this, '${img.replace(
+              /'/g,
+              "\\'"
+            )}')">
+              <i class="fas fa-search"></i>
+              <span>Detect</span>
+            </button>
           </div>
         `;
         })
@@ -241,6 +248,40 @@ window.onload = async function () {
       </div>
     `;
   }
+
+  // Function to handle image detection API call (template)
+  window.detectImage = async function (buttonElement, imageUrl) {
+    console.log("Detecting objects in image:", imageUrl);
+
+    // Add a loading state to the button
+    buttonElement.classList.add("loading");
+    buttonElement.disabled = true;
+    const originalText = buttonElement.querySelector("span").textContent;
+    buttonElement.querySelector("span").textContent = "Detecting...";
+
+    try {
+      // --- API Call Template ---
+      // Replace this with your actual API endpoint and logic
+      console.log(`Pretending to send ${imageUrl} to a detection API.`);
+      // const response = await fetch('/api/detect', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ imageUrl: imageUrl })
+      // });
+      // const results = await response.json();
+      // console.log('Detection results:', results);
+      // alert('Detection complete! Check the console for results.');
+      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate network delay
+    } catch (error) {
+      console.error("Detection API call failed:", error);
+      alert("Image detection failed. See console for details.");
+    } finally {
+      // Restore button to its original state
+      buttonElement.classList.remove("loading");
+      buttonElement.disabled = false;
+      buttonElement.querySelector("span").textContent = originalText;
+    }
+  };
 
   // 2. Initialize the Cesium Viewer with specific options
   const imageryProviderViewModels = [

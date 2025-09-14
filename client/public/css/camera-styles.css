@@ -182,4 +182,63 @@
 .inline-video-close:hover {
   background: #e53935;
   color: #fff;
-} 
+}
+
+/* --- Detect Button Styles --- */
+.detect-btn {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  background-color: rgba(25, 118, 210, 0.8); /* #1976d2 with transparency */
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.3s ease-in-out;
+  width: 32px; /* Initial width for icon only */
+  height: 32px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.detect-btn i {
+  font-size: 14px;
+  transition: opacity 0.2s;
+}
+
+.detect-btn span {
+  white-space: nowrap;
+  font-weight: bold;
+  font-size: 14px;
+  margin-left: 0;
+  max-width: 0;
+  opacity: 0;
+  transition: all 0.3s ease-in-out;
+}
+
+.detect-btn:hover {
+  width: 95px; /* Expanded width */
+  background-color: #1565c0; /* Darker blue on hover */
+}
+
+.detect-btn:hover span {
+  margin-left: 6px;
+  max-width: 100px;
+  opacity: 1;
+}
+
+.detect-btn.loading {
+  cursor: not-allowed;
+  background-color: #555;
+  width: 110px;
+}
+
+.detect-btn.loading span {
+  margin-left: 6px;
+  max-width: 100px;
+  opacity: 1;
+}
