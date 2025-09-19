@@ -1,6 +1,7 @@
 // Initialize app when window loads
 window.onload = async function () {
   // 1. Fetch configuration from server including Cesium Ion access token
+  let codetrApiKey = null;
   try {
     const response = await fetch("/config");
     const config = await response.json();
@@ -9,6 +10,12 @@ window.onload = async function () {
       Cesium.Ion.defaultAccessToken = config.cesiumIonToken;
     } else {
       console.error("No Cesium Ion token provided in server config");
+    }
+
+    if (config.codetrApiKey) {
+      codetrApiKey = config.codetrApiKey;
+    } else {
+      console.error("No Co-DETR API key provided in server config");
     }
   } catch (error) {
     console.error("Failed to load configuration:", error);
@@ -260,18 +267,72 @@ window.onload = async function () {
     buttonElement.querySelector("span").textContent = "Detecting...";
 
     try {
-      // --- API Call Template ---
-      // Replace this with your actual API endpoint and logic
-      console.log(`Pretending to send ${imageUrl} to a detection API.`);
-      // const response = await fetch('/api/detect', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ imageUrl: imageUrl })
-      // });
-      // const results = await response.json();
-      // console.log('Detection results:', results);
-      // alert('Detection complete! Check the console for results.');
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Simulate network delay
+      if (!codetrApiKey) {
+        throw new Error("Co-DETR API Key is not configured.");
+      }
+
+      // 1. Fetch the image and convert it to a blob
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+      }
+      const imageBlob = await imageResponse.blob();
+
+      // 2. Create a File object from the blob
+      const imageFile = new File([imageBlob], "image.png", {
+        type: "image/png",
+      });
+
+      // 3. Create FormData and append the file and score threshold
+      const formData = new FormData();
+      formData.append("file", imageFile);
+      formData.append("score-treshold", "0.5");
+
+      // 4. Make the API call
+      const detectUrl =
+        "https://codetr-api-server-w-key.cis230083.projects.jetstream-cloud.org/detect";
+      const detectResponse = await fetch(detectUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${codetrApiKey}`,
+        },
+        body: formData,
+      });
+
+      if (!detectResponse.ok) {
+        const errorBody = await detectResponse.text();
+        throw new Error(
+          `API Error: ${detectResponse.status} - ${errorBody}`
+        );
+      }
+
+      const results = await detectResponse.json();
+      console.log("Detection results:", results);
+
+      // 5. Display results on the image
+      const imageElement = buttonElement.parentElement.querySelector("img");
+      if (imageElement && results.length > 0) {
+        // Find the carousel slide to draw on
+        const slide = buttonElement.closest(".carousel-slide");
+        if (slide) {
+          // Remove previous detections if any
+          slide
+            .querySelectorAll(".detection-box")
+            .forEach((box) => box.remove());
+
+          results.forEach((res) => {
+            const box = document.createElement("div");
+            box.className = "detection-box";
+            box.style.left = `${(res.box.x1 / imageElement.naturalWidth) * 100}%`;
+            box.style.top = `${(res.box.y1 / imageElement.naturalHeight) * 100}%`;
+            box.style.width = `${((res.box.x2 - res.box.x1) / imageElement.naturalWidth) * 100}%`;
+            box.style.height = `${((res.box.y2 - res.box.y1) / imageElement.naturalHeight) * 100}%`;
+            box.setAttribute("data-label", `${res.label} (${res.score.toFixed(2)})`);
+            slide.appendChild(box);
+          });
+        }
+      }
+      alert("Detection complete! Bounding boxes have been drawn on the image.");
     } catch (error) {
       console.error("Detection API call failed:", error);
       alert("Image detection failed. See console for details.");

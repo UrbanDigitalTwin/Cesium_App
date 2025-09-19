@@ -177,6 +177,7 @@ app.get("/config", (req, res) => {
   // Only expose specific environment variables needed by the client
   res.json({
     cesiumIonToken: process.env.CESIUM_ION_TOKEN || "",
+    codetrApiKey: process.env.CODETR_API_KEY || "",
   });
 });
 
