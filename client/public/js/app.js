@@ -144,7 +144,7 @@ window.onload = async function () {
           <div class="carousel-slide ${
             index === 0 ? "active" : ""
           }" data-index="${index}">
-            <img src="${img}" class="carousel-image" />
+            <img src="${img}" class="carousel-image" onclick="openFullscreenImage(this)" />
             <button class="detect-btn" onclick="detectImage(this, '${img.replace(
               /'/g,
               "\\'"
@@ -1441,22 +1441,148 @@ window.onload = async function () {
     }
   };
 
-  function setupModalClose() {
-    const modal = document.getElementById("imageModal");
-    const closeBtn = document.getElementById("modalCloseBtn");
-    if (closeBtn) {
-      closeBtn.onclick = function (e) {
-        e.stopPropagation();
-        modal.style.display = "none";
-        document.getElementById("modalImg").src = "";
-      };
+  // --- Fullscreen Image Modal Logic ---
+  const modal = document.getElementById("imageModal");
+  const modalImg = document.getElementById("modalImg");
+  const modalCloseBtn = document.getElementById("modalCloseBtn");
+
+  let isPanning = false;
+  let startX, startY, transformX = 0, transformY = 0, scale = 1;
+
+  function resetModalTransform() {
+    scale = 1;
+    transformX = 0;
+    transformY = 0;
+    modalImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+  }
+
+  window.openFullscreenImage = function (imageElement) {
+    if (modal && modalImg && imageElement) {
+      const src = imageElement.src; // Get the CURRENT src, which might be a blob URL
+      resetModalTransform();
+      modal.style.display = "block";
+      modalImg.src = src;
     }
+  };
+
+  function closeModal() {
     if (modal) {
-      modal.onclick = function (event) {
-        if (event.target === modal) {
-          modal.style.display = "none";
-          document.getElementById("modalImg").src = "";
-        }
+      modal.style.display = "none";
+      modalImg.src = "";
+      resetModalTransform();
+    }
+  }
+
+  if (modalCloseBtn) {
+    modalCloseBtn.onclick = closeModal;
+  }
+
+  if (modal) {
+    modal.onclick = function (event) {
+      // Close if clicking on the background, not the image itself
+      if (event.target === modal || event.target.id === 'modalImageWrapper') {
+        closeModal();
+      }
+    };
+
+    modalImg.addEventListener('mousedown', (e) => {
+      // Only allow panning if the image is zoomed in.
+      if (scale <= 1) {
+        modalImg.style.cursor = 'grab'; // Show grab cursor but don't pan
+        return;
+      }
+      e.preventDefault();
+      isPanning = true;
+      startX = e.clientX - transformX;
+      startY = e.clientY - transformY;
+      modalImg.classList.add('panning');
+      modalImg.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+      modalImg.classList.remove('panning');
+      modalImg.style.cursor = scale > 1 ? 'grab' : 'default';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning || scale <= 1) return;
+      e.preventDefault();
+
+      let newTransformX = e.clientX - startX;
+      let newTransformY = e.clientY - startY;
+
+      // Calculate the boundaries
+      const rect = modalImg.getBoundingClientRect();
+      const containerRect = modal.getBoundingClientRect();
+
+      const maxX = Math.max(0, (rect.width - containerRect.width) / 2);
+      const maxY = Math.max(0, (rect.height - containerRect.height) / 2);
+
+      // Clamp the translation to the calculated boundaries
+      transformX = Math.max(-maxX, Math.min(maxX, newTransformX));
+      transformY = Math.max(-maxY, Math.min(maxY, newTransformY));
+
+      modalImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+    });
+
+    modal.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const scaleAmount = 0.1;
+      const oldScale = scale;
+
+      if (e.deltaY < 0) {
+        // Zoom in
+        scale += scaleAmount;
+      } else {
+        // Zoom out
+        scale = Math.max(0.1, scale - scaleAmount);
+      }
+      
+      // Update cursor based on new scale
+      modalImg.style.cursor = scale > 1 ? 'grab' : 'default';
+
+
+      // Get mouse position relative to the viewport
+      const rect = modalImg.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Adjust translation to keep the point under the mouse stationary
+      transformX = transformX - (mouseX / oldScale) * (scale - oldScale);
+      transformY = transformY - (mouseY / oldScale) * (scale - oldScale);
+
+      // If zoomed out completely, reset the pan
+      if (scale <= 1) {
+          transformX = 0;
+          transformY = 0;
+          scale = 1; // Ensure scale is exactly 1
+      } else {
+        // After zooming, re-clamp the position to stay within bounds
+        const newImageWidth = modalImg.naturalWidth * scale;
+        const newImageHeight = modalImg.naturalHeight * scale;
+        const containerRect = modal.getBoundingClientRect();
+
+        const maxX = Math.max(0, (newImageWidth - containerRect.width) / 2);
+        const maxY = Math.max(0, (newImageHeight - containerRect.height) / 2);
+
+        transformX = Math.max(-maxX, Math.min(maxX, transformX));
+        transformY = Math.max(-maxY, Math.min(maxY, transformY));
+      }
+
+      modalImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+    });
+  }
+
+  function setupModalClose() {
+    // This function is now partially handled by the new modal logic above,
+    // but we can keep it for safety or remove it if fully redundant.
+    // For now, let's ensure it doesn't conflict.
+    const legacyCloseBtn = document.getElementById("modalCloseBtn");
+    if (legacyCloseBtn) {
+      legacyCloseBtn.onclick = function (e) {
+        e.stopPropagation();
+        closeModal();
       };
     }
   }
