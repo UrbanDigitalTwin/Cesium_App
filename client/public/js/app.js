@@ -271,8 +271,9 @@ window.onload = async function () {
         throw new Error("Co-DETR API Key is not configured.");
       }
 
-      // 1. Fetch the image and convert it to a blob
-      const imageResponse = await fetch(imageUrl);
+      // 1. Fetch the image through the server-side proxy to avoid CORS issues
+      const proxyUrl = `/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+      const imageResponse = await fetch(proxyUrl);
       if (!imageResponse.ok) {
         throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
       }
@@ -300,39 +301,55 @@ window.onload = async function () {
       });
 
       if (!detectResponse.ok) {
-        const errorBody = await detectResponse.text();
-        throw new Error(
-          `API Error: ${detectResponse.status} - ${errorBody}`
-        );
-      }
-
-      const results = await detectResponse.json();
-      console.log("Detection results:", results);
-
-      // 5. Display results on the image
-      const imageElement = buttonElement.parentElement.querySelector("img");
-      if (imageElement && results.length > 0) {
-        // Find the carousel slide to draw on
-        const slide = buttonElement.closest(".carousel-slide");
-        if (slide) {
-          // Remove previous detections if any
-          slide
-            .querySelectorAll(".detection-box")
-            .forEach((box) => box.remove());
-
-          results.forEach((res) => {
-            const box = document.createElement("div");
-            box.className = "detection-box";
-            box.style.left = `${(res.box.x1 / imageElement.naturalWidth) * 100}%`;
-            box.style.top = `${(res.box.y1 / imageElement.naturalHeight) * 100}%`;
-            box.style.width = `${((res.box.x2 - res.box.x1) / imageElement.naturalWidth) * 100}%`;
-            box.style.height = `${((res.box.y2 - res.box.y1) / imageElement.naturalHeight) * 100}%`;
-            box.setAttribute("data-label", `${res.label} (${res.score.toFixed(2)})`);
-            slide.appendChild(box);
-          });
+        let errorBody = "Could not read error response.";
+        try {
+          // Try to parse as JSON first, as many APIs do.
+          const errorJson = await detectResponse.json();
+          errorBody = JSON.stringify(errorJson);
+        } catch (e) {
+          // If not JSON, read as text.
+          errorBody = await detectResponse.text();
         }
+        throw new Error(`API Error: ${detectResponse.status} - ${errorBody}`);
       }
-      alert("Detection complete! Bounding boxes have been drawn on the image.");
+      
+      const contentType = detectResponse.headers.get("content-type");
+      const imageElement = buttonElement.parentElement.querySelector("img");
+
+      if (contentType && contentType.startsWith("image/")) {
+        // Handle image response
+        console.log("Detection API returned an image.");
+        const imageBlob = await detectResponse.blob();
+        const newImageUrl = URL.createObjectURL(imageBlob);
+        
+        if (imageElement) {
+          imageElement.src = newImageUrl;
+        }
+
+      } else if (contentType && contentType.includes("application/json")) {
+        // Handle JSON response (existing logic)
+        const results = await detectResponse.json();
+        console.log("Detection results:", results);
+
+        if (imageElement && results.length > 0) {
+          const slide = buttonElement.closest(".carousel-slide");
+          if (slide) {
+            slide.querySelectorAll(".detection-box").forEach((box) => box.remove());
+            results.forEach((res) => {
+              const box = document.createElement("div");
+              box.className = "detection-box";
+              box.style.left = `${(res.box.x1 / imageElement.naturalWidth) * 100}%`;
+              box.style.top = `${(res.box.y1 / imageElement.naturalHeight) * 100}%`;
+              box.style.width = `${((res.box.x2 - res.box.x1) / imageElement.naturalWidth) * 100}%`;
+              box.style.height = `${((res.box.y2 - res.box.y1) / imageElement.naturalHeight) * 100}%`;
+              box.setAttribute("data-label", `${res.label} (${res.score.toFixed(2)})`);
+              slide.appendChild(box);
+            });
+          }
+        }
+      } else {
+        throw new Error(`Detection API returned an unexpected content type: ${contentType}.`);
+      }
     } catch (error) {
       console.error("Detection API call failed:", error);
       alert("Image detection failed. See console for details.");
