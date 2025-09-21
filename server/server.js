@@ -138,8 +138,13 @@ app.get("/ny511-cameras", async (req, res) => {
 
 // TomTom Traffic proxy endpoint
 app.get("/tomtom-traffic", async (req, res) => {
-  const apiKey =
-    process.env.TOMTOM_API_KEY || "yQWgvqceUQoSR7g3MySgTGirgroZtMMc"; // Fallback key if env not set
+  const apiKey = process.env.TOMTOM_API_KEY || "zl9fM8RXwBBTvB7t18M6f7jGUaeXX590"; //fallback key if not set in .env
+
+  if (!apiKey) {
+    console.error("TomTom API key is not configured on the server.");
+    return res.status(500).json({ error: "TomTom API key is not configured." });
+  }
+
   const { z, x, y, ts } = req.query;
 
   if (!z || !x || !y) {
