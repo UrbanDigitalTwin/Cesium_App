@@ -3457,13 +3457,28 @@ window.onload = async function () {
         return { message: `NWPS Gauges API Error: ${errorDetail}` };
       }
       const data = await response.json();
-      const gauges = data.gauges || [];
+      let gauges = data.gauges || [];
 
       if (gauges.length === 0) {
         return { message: 'No river gauges found in this area.', gauges: [] };
       }
 
-      return { gauges: gauges };
+      // --- FIX: If the original selection was a polygon, filter the results ---
+      // The API is queried with a rectangle, so we need to check which gauges
+      // are actually inside the user-drawn polygon.
+      if (!(bounds instanceof Cesium.Rectangle)) {
+        const polygonCartographicPoints = bounds.positions.map(p => Cesium.Cartographic.fromCartesian(p));
+        
+        gauges = gauges.filter(gauge => {
+          const gaugePoint = Cesium.Cartographic.fromDegrees(gauge.longitude, gauge.latitude);
+          return isPointInPolygon(gaugePoint, polygonCartographicPoints);
+        });
+      }
+
+      return {
+        gauges: gauges
+      };
+      // --- End of Fix ---
 
     } catch (error) {
       console.error('Failed to fetch river gauges:', error);
