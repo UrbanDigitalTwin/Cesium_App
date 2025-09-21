@@ -40,6 +40,7 @@ window.onload = async function () {
   // --- Boundary Selection Variables ---
   let usStatesData = [];
   let usCountiesData = [];
+  let sviData = new Map();
 
   // --- Weather Alerts Variables ---
   let weatherAlertEntities = [];
@@ -2035,6 +2036,63 @@ window.onload = async function () {
     }
   }
 
+  /**
+   * A more robust CSV parser that handles quoted fields containing commas.
+   * @param {string} str The CSV string to parse.
+   * @returns {string[]} An array of column values.
+   */
+  function parseCsvRow(str) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < str.length; i++) {
+      const char = str[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  async function fetchSviData() {
+    try {
+      // The SVI data is in a CSV file. We need to fetch and parse it.
+      const response = await fetch('/data/SVI_2022_US_county.csv');
+      if (!response.ok) {
+        throw new Error('Failed to load SVI data.');
+      }
+      const csvText = await response.text();
+      const lines = csvText.split('\n').slice(1); // Skip header row
+
+      lines.forEach(line => {
+        const columns = parseCsvRow(line);
+        // The FIPS code is in the 'FIPS' column (index 5).
+        // The overall SVI percentile is in the 'RPL_THEMES' column (index 98).
+        const fips = columns[5];
+        const overallSvi = parseFloat(columns[98]);
+  
+        if (fips && !isNaN(overallSvi)) {
+          // The FIPS code in the CSV might have leading zeros, but GeoJSON FIPS might not.
+          // We'll store it as is, and handle comparisons carefully.
+          sviData.set(fips, {
+            overall: overallSvi
+          });
+        }
+      });
+
+      console.log(`SVI data loaded for ${sviData.size} counties.`);
+    } catch (error) {
+      console.error('Error fetching or parsing SVI data:', error);
+      // You might want to disable the SVI filter if data loading fails.
+    }
+  }
+
   function populateBoundaryList(searchTerm = '') {
     if (usStatesData.length === 0) {
       bbBoundaryList.innerHTML = '<p>Loading boundaries...</p>';
@@ -3423,6 +3481,98 @@ window.onload = async function () {
         <p><strong>Source:</strong> <a href="https://www.weather.gov/documentation/services-web-api" target="_blank">NOAA NWS API</a></p>
       `
     }
+    , {
+        id: 'svi',
+        label: 'Social Vulnerability Index (SVI)',
+        description: 'Calculates the average CDC Social Vulnerability Index for counties within the bounding box.',
+        analysisFn: async (bounds) => {
+            if (sviData.size === 0) {
+                return { message: 'SVI data not loaded or is empty.' };
+            }
+
+            const intersectingCountiesSVI = [];
+            const boundingRectangle = (bounds instanceof Cesium.Rectangle) ?
+                bounds :
+                Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+
+            const promises = usCountiesData.map(async (countyFeature) => {
+                const countySvi = sviData.get(countyFeature.id); // Use the feature's top-level 'id' for FIPS
+
+                if (countySvi && countySvi.overall !== -1) {
+                    // This is a fast approximation. For perfect accuracy, a polygon-polygon intersection test would be needed.
+                    const entity = await Cesium.GeoJsonDataSource.load(countyFeature).then(ds => ds.entities.values[0]);
+                    if (entity && entity.polygon) {
+                        const hierarchy = entity.polygon.hierarchy.getValue();
+                        if (hierarchy && hierarchy.positions && hierarchy.positions.length > 0) {
+                            const countyBoundingRect = Cesium.Rectangle.fromCartesianArray(hierarchy.positions, Cesium.Ellipsoid.WGS84);
+                            if (Cesium.Rectangle.intersection(boundingRectangle, countyBoundingRect)) {
+                                intersectingCountiesSVI.push(countySvi.overall);
+                            }
+                        }
+                    }
+                }
+            });
+
+            await Promise.all(promises);
+
+            if (intersectingCountiesSVI.length > 0) {
+                const sum = intersectingCountiesSVI.reduce((a, b) => a + b, 0);
+                const avg = sum / intersectingCountiesSVI.length;
+                return {
+                    message: `Avg. SVI: ${avg.toFixed(3)}`,
+                    value: avg,
+                    count: intersectingCountiesSVI.length
+                };
+            } else {
+                return { message: 'No counties with SVI data found in this area.' };
+            }
+        },
+        displayFn: (result, el) => { // Make the SVI result more readable
+            if (result.value !== undefined) {
+                const svi = result.value;
+                let level = '';
+                let color = '';
+
+                // Corrected SVI thresholds for more intuitive labeling
+                if (svi >= 0.80) {
+                    level = 'High';
+                    color = '#d32f2f'; // Red
+                } else if (svi >= 0.60) {
+                    level = 'Moderate-High';
+                    color = '#ffa000'; // Orange
+                } else if (svi >= 0.40) {
+                    level = 'Moderate';
+                    color = '#fbc02d'; // Yellow
+                } else if (svi >= 0.20) {
+                    level = 'Low-Moderate';
+                    color = '#9ccc65'; // Light Green
+                } else {
+                    level = 'Low';
+                    color = '#4caf50'; // Green
+                }
+
+                const html = `
+                    <div class="svi-result">
+                        <div class="svi-header">
+                            <span class="svi-level" style="background-color: ${color};">${level}</span>
+                            <span class="svi-value">Avg. SVI: <strong>${svi.toFixed(3)}</strong></span>
+                        </div>
+                        <p class="svi-explanation">
+                            On average, the ${result.count} counties in this area are more socially vulnerable than
+                            <strong>${(svi * 100).toFixed(0)}%</strong> of U.S. counties.
+                        </p>
+                    </div>
+                `;
+                el.innerHTML = html;
+            } else {
+                el.textContent = result.message;
+            }
+        },
+        metadata: `
+        <h5>CDC/ATSDR Social Vulnerability Index (SVI)</h5>
+        <p>The SVI uses U.S. Census data to determine the social vulnerability of every county. This filter shows the average overall percentile ranking (RPL_THEMES) for intersected counties. Higher values indicate greater vulnerability.</p>
+        <p><strong>Source:</strong> Centers for Disease Control and Prevention/ Agency for Toxic Substances and Disease Registry/ Geospatial Research, Analysis, and Services Program. CDC/ATSDR Social Vulnerability Index 2022 Database U.S.</p>`
+    },
   ];
 
   /**
@@ -3708,4 +3858,16 @@ window.onload = async function () {
   initializeFilterDialog();
   updateBoundingBoxUI('initial');
   fetchBoundaryData();
+  // fetchSviData is now correctly called here
+  fetchSviData();
+
+  // Populate SVI source info in the sidebar
+  const sviSourceInfo = document.getElementById('svi-source-info');
+  if (sviSourceInfo) {
+    sviSourceInfo.innerHTML = `
+      <h6>Social Vulnerability Index</h6>
+      <p>Centers for Disease Control and Prevention/ Agency for Toxic Substances and Disease Registry/ Geospatial Research, Analysis, and Services Program. CDC/ATSDR Social Vulnerability Index 2022 Database U.S.</p>
+    `;
+  }
+
 };
