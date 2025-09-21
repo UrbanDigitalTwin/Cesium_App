@@ -368,31 +368,53 @@ window.onload = async function () {
         // Fetch forecast data
         // --- FIX: Use the correct '/stageflow' endpoint for forecast data ---
         const forecastUrl = `https://api.water.noaa.gov/nwps/v1/gauges/${gaugeId}/stageflow`;
+        console.log('Requesting gauge forecast data from:', forecastUrl);
         try {
           const forecastRes = await fetchWithTimeout(forecastUrl, {}, 10000);
           if (!forecastRes.ok) throw new Error(`API Error ${forecastRes.status}`);
           const forecastData = await forecastRes.json();
 
-          // --- FIX: Parse the correct response structure ---
-          const forecast = forecastData.forecast;
-          const latestForecastData = forecast?.data[0];
           let forecastHtml = '<p>No forecast data available.</p>';
+          
+          // --- FIX: Check for forecast data first, then fall back to observed data ---
+          const forecastInfo = forecastData.forecast;
+          const observedInfo = forecastData.observed;
 
-          if (latestForecastData && forecast) {
-            const stage = latestForecastData.primary;
-            const flow = latestForecastData.secondary;
+          if (forecastInfo && forecastInfo.data && forecastInfo.data.length > 0) {
+            // Use the latest forecast data
+            const latestData = forecastInfo.data[0];
+            const stage = latestData.primary;
+            const flow = latestData.secondary;
             forecastHtml = `
               <div class="gauge-forecast-details">
                 <div class="gauge-metric">
                   <span class="gauge-label">Forecast Stage</span>
-                  <span class="gauge-value">${stage.toFixed(2)} ${forecast.primaryUnits}</span>
+                  <span class="gauge-value">${stage.toFixed(2)} ${forecastInfo.primaryUnits}</span>
                 </div>
                 <div class="gauge-metric">
                   <span class="gauge-label">Forecast Flow</span>
-                  <span class="gauge-value">${flow.toLocaleString()} ${forecast.secondaryUnits}</span>
+                  <span class="gauge-value">${flow.toLocaleString()} ${forecastInfo.secondaryUnits}</span>
                 </div>
               </div>
-              <p class="gauge-timestamp">Forecast valid at: ${new Date(latestForecastData.validTime).toLocaleString()}</p>
+              <p class="gauge-timestamp">Forecast valid at: ${new Date(latestData.validTime).toLocaleString()}</p>
+            `;
+          } else if (observedInfo && observedInfo.data && observedInfo.data.length > 0) {
+            // Fallback to the latest observed data
+            const latestData = observedInfo.data[observedInfo.data.length - 1]; // Get the most recent observation
+            const stage = latestData.primary;
+            const flow = latestData.secondary;
+            forecastHtml = `
+              <div class="gauge-forecast-details">
+                <div class="gauge-metric">
+                  <span class="gauge-label">Latest Observed Stage</span>
+                  <span class="gauge-value">${stage.toFixed(2)} ${observedInfo.primaryUnits}</span>
+                </div>
+                <div class="gauge-metric">
+                  <span class="gauge-label">Latest Observed Flow</span>
+                  <span class="gauge-value">${flow > -999 ? flow.toLocaleString() : 'N/A'} ${observedInfo.secondaryUnits}</span>
+                </div>
+              </div>
+              <p class="gauge-timestamp">Observation valid at: ${new Date(latestData.validTime).toLocaleString()}</p>
             `;
           }
           gaugeInfoBoxContainer.innerHTML = `
