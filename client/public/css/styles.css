@@ -1727,3 +1727,103 @@ html, body {
   color: #ccc;
   font-weight: normal;
 }
+
+/* --- River Gauge Styles --- */
+.gauge-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  padding: 8px;
+}
+.gauge-count {
+  font-size: 24px;
+  font-weight: bold;
+  color: #00aaff;
+}
+.gauge-count-label {
+  font-size: 16px;
+  color: #eee;
+}
+.gauge-instructions {
+  font-size: 12px;
+  color: #bbb;
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* --- Gauge InfoBox Container --- */
+.gauge-info-box-container {
+  position: absolute;
+  bottom: 80px; /* Position above the bottom-right buttons */
+  right: 20px;
+  z-index: 1000;
+  width: 320px;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.gauge-info-box-container.hidden {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}
+
+.gauge-info-box {
+  background: rgba(25, 35, 45, 0.9);
+  backdrop-filter: blur(5px);
+  color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 16px 20px;
+}
+.gauge-info-box h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.1em;
+  color: #7ac9ff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  padding-bottom: 8px;
+}
+.gauge-info-close {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 24px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.gauge-info-close:hover {
+  color: #fff;
+}
+.gauge-forecast-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.gauge-metric {
+  text-align: center;
+  background: rgba(0,0,0,0.2);
+  padding: 8px;
+  border-radius: 4px;
+}
+.gauge-label {
+  display: block;
+  font-size: 12px;
+  color: #ccc;
+  margin-bottom: 4px;
+}
+.gauge-value {
+  font-size: 16px;
+  font-weight: bold;
+}
+.gauge-timestamp {
+  font-size: 11px;
+  color: #999;
+  text-align: center;
+  margin-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 8px;
+}
+}

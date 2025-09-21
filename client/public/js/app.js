@@ -46,6 +46,10 @@ window.onload = async function () {
   let weatherAlertEntities = [];
   let weatherAlertsVisible = false;
 
+  // --- River Gauge Variables ---
+  let gaugeEntities = [];
+  let activeGaugeInfoBox = null;
+
   // fetch and process camera data
   async function fetchAndProcessCameras() {
     try {
@@ -309,9 +313,15 @@ window.onload = async function () {
   cameraInfoContainer.style.display = "none";
   document.body.appendChild(cameraInfoContainer);
 
+  // Add gauge info box container to the DOM
+  const gaugeInfoBoxContainer = document.getElementById("gaugeInfoBox");
+  if (!gaugeInfoBoxContainer) {
+    console.error("Gauge info box container not found in HTML.");
+  }
+
   // click handler for camera entities and emergency events
   const cameraHandler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
-  cameraHandler.setInputAction((click) => {
+  cameraHandler.setInputAction(async (click) => {
     const picked = viewer.scene.pick(click.position);
 
     if (Cesium.defined(picked) && picked.id) {
@@ -333,6 +343,84 @@ window.onload = async function () {
 
         cameraInfoContainer.style.display = "block";
         activeCameraInfoBox = cameraInfoContainer;
+      }
+      // --- FIX: Handle river gauge clicks within the main handler ---
+      else if (picked.id.properties && picked.id.properties.isRiverGauge) {
+        const props = picked.id.properties;
+        const gaugeId = props.lid.getValue();
+        const gaugeName = props.name.getValue();
+
+        // Show loading state
+        gaugeInfoBoxContainer.innerHTML = `
+          <div class="gauge-info-box">
+            <button class="gauge-info-close">&times;</button>
+            <h4>${gaugeName} (${gaugeId})</h4>
+            <p>Loading forecast data...</p>
+          </div>
+        `;
+        gaugeInfoBoxContainer.classList.remove('hidden');
+        gaugeInfoBoxContainer.querySelector('.gauge-info-close').onclick = () => {
+          gaugeInfoBoxContainer.classList.add('hidden');
+          activeGaugeInfoBox = null;
+        };
+        activeGaugeInfoBox = gaugeInfoBoxContainer;
+
+        // Fetch forecast data
+        // --- FIX: Use the correct '/stageflow' endpoint for forecast data ---
+        const forecastUrl = `https://api.water.noaa.gov/nwps/v1/gauges/${gaugeId}/stageflow`;
+        try {
+          const forecastRes = await fetchWithTimeout(forecastUrl, {}, 10000);
+          if (!forecastRes.ok) throw new Error(`API Error ${forecastRes.status}`);
+          const forecastData = await forecastRes.json();
+
+          // --- FIX: Parse the correct response structure ---
+          const forecast = forecastData.forecast;
+          const latestForecastData = forecast?.data[0];
+          let forecastHtml = '<p>No forecast data available.</p>';
+
+          if (latestForecastData && forecast) {
+            const stage = latestForecastData.primary;
+            const flow = latestForecastData.secondary;
+            forecastHtml = `
+              <div class="gauge-forecast-details">
+                <div class="gauge-metric">
+                  <span class="gauge-label">Forecast Stage</span>
+                  <span class="gauge-value">${stage.toFixed(2)} ${forecast.primaryUnits}</span>
+                </div>
+                <div class="gauge-metric">
+                  <span class="gauge-label">Forecast Flow</span>
+                  <span class="gauge-value">${flow.toLocaleString()} ${forecast.secondaryUnits}</span>
+                </div>
+              </div>
+              <p class="gauge-timestamp">Forecast valid at: ${new Date(latestForecastData.validTime).toLocaleString()}</p>
+            `;
+          }
+          gaugeInfoBoxContainer.innerHTML = `
+            <div class="gauge-info-box">
+              <button class="gauge-info-close">&times;</button>
+              <h4>${gaugeName} (${gaugeId})</h4>
+              ${forecastHtml}
+            </div>
+          `;
+          gaugeInfoBoxContainer.querySelector('.gauge-info-close').onclick = () => {
+            gaugeInfoBoxContainer.classList.add('hidden');
+            activeGaugeInfoBox = null;
+          };
+
+        } catch (error) {
+          console.error("Error fetching gauge forecast:", error);
+          gaugeInfoBoxContainer.innerHTML = `
+            <div class="gauge-info-box">
+              <button class="gauge-info-close">&times;</button>
+              <h4>${gaugeName} (${gaugeId})</h4>
+              <p style="color: #ff5252;">Error loading forecast data.</p>
+            </div>
+          `;
+          gaugeInfoBoxContainer.querySelector('.gauge-info-close').onclick = () => {
+            gaugeInfoBoxContainer.classList.add('hidden');
+            activeGaugeInfoBox = null;
+          };
+        }
       }
       // Check if it's an emergency event entity
       else if (picked.id.properties && picked.id.properties.isEmergencyEvent) {
@@ -358,11 +446,23 @@ window.onload = async function () {
           activeCameraInfoBox.style.display = "none";
           activeCameraInfoBox = null;
         }
+        // Also hide gauge info box if it's open
+        if (gaugeInfoBoxContainer) {
+          gaugeInfoBoxContainer.classList.add('hidden');
+          gaugeInfoBoxContainer.innerHTML = '';
+          activeGaugeInfoBox = null;
+        }
       }
     } else {
       if (activeCameraInfoBox) {
         activeCameraInfoBox.style.display = "none";
         activeCameraInfoBox = null;
+      }
+      // Also hide gauge info box if it's open
+      if (gaugeInfoBoxContainer) {
+        gaugeInfoBoxContainer.classList.add('hidden');
+        gaugeInfoBoxContainer.innerHTML = '';
+        activeGaugeInfoBox = null;
       }
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -2509,6 +2609,7 @@ window.onload = async function () {
       clearTemperatureGrid(); // Clear old analysis results
       resetAllFiltersUI(); // Ensure filter UI is reset
       clearWeatherAlerts();
+      clearRiverGauges();
     }
     originalBoundingBoxCartesians = null;
 
@@ -2935,6 +3036,14 @@ window.onload = async function () {
     weatherAlertEntities = [];
   }
 
+  function clearRiverGauges() {
+    gaugeEntities.forEach(entity => {
+      if (viewer.entities.contains(entity)) {
+        viewer.entities.remove(entity);
+      }
+    });
+    gaugeEntities = [];
+  }
   async function fetchTemperatureData(bounds) {
     if (temperatureAnalysisRunning) {
       return { message: 'Analysis already in progress.' };
@@ -3270,6 +3379,108 @@ window.onload = async function () {
   }
 
   /**
+   * Fetches river gauge data from the NWPS API for the given bounds.
+   * @param {Cesium.Rectangle | Cesium.PolygonHierarchy} bounds The bounding box for the analysis.
+   * @returns {Promise<object>} An object containing the list of gauges or an error message.
+   */
+  async function fetchRiverGauges(bounds) {
+    clearRiverGauges();
+
+    const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
+      bounds :
+      Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+
+    // Ensure north > south and east > west, as required by the API.
+    const northDeg = Cesium.Math.toDegrees(analysisBounds.north);
+    const southDeg = Cesium.Math.toDegrees(analysisBounds.south);
+    const eastDeg = Cesium.Math.toDegrees(analysisBounds.east);
+    const westDeg = Cesium.Math.toDegrees(analysisBounds.west);
+
+    const north = Math.max(northDeg, southDeg);
+    const south = Math.min(northDeg, southDeg);
+    const east = Math.max(eastDeg, westDeg);
+    const west = Math.min(eastDeg, westDeg);
+
+    // --- FINAL FIX ---
+    // The API documentation shows that the bounding box should be passed as four separate
+    // parameters (bbox.xmin, bbox.ymin, etc.) rather than a single string.
+    // This is a more robust method that avoids the server-side parsing errors.
+    const baseUrl = 'https://api.water.noaa.gov/nwps/v1/gauges';
+    const params = new URLSearchParams({
+      'bbox.xmin': west.toFixed(4),  // Corresponds to west longitude
+      'bbox.ymin': south.toFixed(4), // Corresponds to south latitude
+      'bbox.xmax': east.toFixed(4),   // Corresponds to east longitude
+      'bbox.ymax': north.toFixed(4),  // Corresponds to north latitude
+      'srid': 'EPSG_4326'             // Specify coordinates are in WGS84 (lat/lon)
+    });
+    const url = `${baseUrl}?${params.toString()}`;
+
+    console.log('Requesting NWPS Gauges with URL:', url); // Log the exact URL for debugging
+
+    try {
+      // Add 'Accept' header for robustness with API gateways.
+      const response = await fetchWithTimeout(url, { headers: { 'Accept': 'application/json' } }, 10000);
+      if (!response.ok) {
+        // Try to get a more detailed error message from the API response body
+        let errorDetail = `Status: ${response.status}`;
+        const responseText = await response.text(); // Get raw response text
+        console.error("NWPS Gauges API Raw Error Response:", responseText); // Log raw text
+        try {
+          // Try to parse it as JSON, but use the raw text if that fails
+          const errorData = JSON.parse(responseText);
+          errorDetail = errorData.detail || errorData.message || JSON.stringify(errorData);
+        } catch (e) {
+          errorDetail = responseText || `Status: ${response.status}`; // Fallback to raw text or status
+        }
+        return { message: `NWPS Gauges API Error: ${errorDetail}` };
+      }
+      const data = await response.json();
+      const gauges = data.gauges || [];
+
+      if (gauges.length === 0) {
+        return { message: 'No river gauges found in this area.', gauges: [] };
+      }
+
+      return { gauges: gauges };
+
+    } catch (error) {
+      console.error('Failed to fetch river gauges:', error);
+      return { message: 'Error fetching river gauges.' };
+    }
+  }
+
+  /**
+   * Renders river gauge entities on the map.
+   * @param {Array<object>} gauges The array of gauge GeoJSON features.
+   */
+  function renderRiverGauges(gauges) {
+    if (!gauges || gauges.length === 0) return;
+
+    // --- FIX: Use PinBuilder to create a reliable icon and avoid image loading errors ---
+    const pinBuilder = new Cesium.PinBuilder();
+    const gaugePin = pinBuilder.fromColor(Cesium.Color.DODGERBLUE, 24).toDataURL();
+
+    gauges.forEach(gauge => {
+      const lat = gauge.latitude;
+      const lon = gauge.longitude;
+      const entity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        billboard: {
+          image: gaugePin,
+          width: 24, // The pin is 24x24, so this is correct
+          height: 24,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        properties: {
+          isRiverGauge: true,
+          ...gauge
+        }
+      });
+      gaugeEntities.push(entity);
+    });
+  }
+
+  /**
    * Converts wind direction in degrees to a cardinal direction.
    * @param {number} degree The wind direction in degrees.
    * @returns {string} The cardinal direction (e.g., N, NE, E).
@@ -3572,7 +3783,40 @@ window.onload = async function () {
         <h5>CDC/ATSDR Social Vulnerability Index (SVI)</h5>
         <p>The SVI uses U.S. Census data to determine the social vulnerability of every county. This filter shows the average overall percentile ranking (RPL_THEMES) for intersected counties. Higher values indicate greater vulnerability.</p>
         <p><strong>Source:</strong> Centers for Disease Control and Prevention/ Agency for Toxic Substances and Disease Registry/ Geospatial Research, Analysis, and Services Program. CDC/ATSDR Social Vulnerability Index 2022 Database U.S.</p>`
-    },
+    }, {
+      id: 'river-gauges',
+      label: 'River Gauges',
+      description: "Finds river gauges from NOAA's National Water Prediction Service within the area.",
+      analysisFn: fetchRiverGauges,
+      displayFn: (result, el) => {
+        if (result.gauges) {
+          const count = result.gauges.length;
+          if (count > 0) {
+            el.innerHTML = `
+              <div class="gauge-result">
+                <span class="gauge-count">${count}</span>
+                <span class="gauge-count-label">River Gauge${count > 1 ? 's' : ''} Found</span>
+              </div>
+              <p class="gauge-instructions">Click a gauge icon <i class="fas fa-tint" style="color: #1e90ff;"></i> on the map for forecast details.</p>
+            `;
+            renderRiverGauges(result.gauges);
+          } else {
+            el.textContent = 'No river gauges found in this area.';
+          }
+        } else {
+          el.textContent = result.message || 'Could not retrieve gauge data.';
+        }
+        el.classList.add('map-display');
+      },
+      metadata: `
+        <h5>NOAA River Gauges</h5>
+        <p>
+          Displays river gauge locations provided by the NOAA National Water Prediction Service (NWPS).
+          Clicking on a gauge icon on the map will fetch and display the latest analysis and assimilation forecast for that location, including river stage and flow.
+        </p>
+        <p><strong>Source:</strong> <a href="https://api.water.noaa.gov/nwps/v1/docs" target="_blank">NOAA NWPS API</a></p>
+      `
+    }
   ];
 
   /**
@@ -3634,7 +3878,10 @@ window.onload = async function () {
             def.postRenderFn();
           }
         } catch (error) {
-          display.textContent = 'Error';
+          // Display the error message in the UI and log the full error to the console.
+          const errorMessage = error.message || 'An unexpected error occurred.';
+          display.innerHTML = `<span style="color: #ff5252;">Error: ${errorMessage}</span>`;
+          display.classList.remove('hidden');
           console.error(`Analysis failed for ${filterId}:`, error);
         }
       }
@@ -3726,6 +3973,7 @@ window.onload = async function () {
       clearTemperatureGrid();
       resetAllFiltersUI();
       clearWeatherAlerts();
+      clearRiverGauges();
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
