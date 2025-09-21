@@ -552,6 +552,28 @@ window.onload = async function () {
     }
   }
 
+  // --- Traffic Legend Logic ---
+  function showTrafficLegend() {
+    const legend = document.getElementById('trafficLegend');
+    if (legend) {
+      legend.innerHTML = `
+        <h5>Traffic Flow</h5>
+        <div class="traffic-legend-gradient"></div>
+        <div class="traffic-legend-labels">
+          <span>Fast</span>
+          <span>Slow</span>
+        </div>
+      `;
+      legend.classList.remove('hidden');
+    }
+  }
+  function hideTrafficLegend() {
+    const legend = document.getElementById('trafficLegend');
+    if (legend) {
+      legend.classList.add('hidden');
+    }
+  }
+
   // Emergency management functionality
   async function fetchEmergencyEvents() {
     try {
@@ -782,6 +804,7 @@ window.onload = async function () {
       sidebarTrafficBtn.classList.remove("active");
       sidebarTrafficBtn.textContent = "Show Live Traffic";
       stopTrafficAnimation();
+      hideTrafficLegend();
     } else {
       removeTileset();
       setBaseLayerToBing();
@@ -789,6 +812,7 @@ window.onload = async function () {
       sidebarTrafficBtn.classList.add("active");
       sidebarTrafficBtn.textContent = "Hide Live Traffic";
       startTrafficAnimation();
+      showTrafficLegend();
     }
   };
 
@@ -1430,6 +1454,7 @@ window.onload = async function () {
         removeTrafficLayer();
         sidebarTrafficBtn.classList.remove("active");
         sidebarTrafficBtn.textContent = "Show Live Traffic";
+        hideTrafficLegend();
         stopTrafficAnimation();
       }
       // Toggle Traffic View layer
