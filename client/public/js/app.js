@@ -350,6 +350,16 @@ window.onload = async function () {
         const gaugeId = props.lid.getValue();
         const gaugeName = props.name.getValue();
 
+        // Fly to the entity, keeping it centered on screen with an offset
+        viewer.flyTo(picked.id, {
+          duration: 1.5,
+          offset: new Cesium.HeadingPitchRange(
+            viewer.camera.heading, // Keep the current heading
+            Cesium.Math.toRadians(-35.0), // A slightly less steep angle
+            3000 // Range from the target in meters
+          ),
+        });
+
         // Show loading state
         gaugeInfoBoxContainer.innerHTML = `
           <div class="gauge-info-box">
