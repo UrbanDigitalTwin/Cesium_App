@@ -1826,4 +1826,25 @@ html, body {
   border-top: 1px solid rgba(255, 255, 255, 0.15);
   padding-top: 8px;
 }
+.gauge-status-legend {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  font-size: 11px;
+  color: #bbb;
+  margin-top: 12px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+.gauge-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.gauge-legend-item .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
 }

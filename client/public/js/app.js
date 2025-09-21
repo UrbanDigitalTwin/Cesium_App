@@ -50,6 +50,50 @@ window.onload = async function () {
   let gaugeEntities = [];
   let activeGaugeInfoBox = null;
 
+  /**
+   * Determines the status and color of a river gauge based on its current water level
+   * compared to its defined flood stages.
+   * @param {number} currentLevel The current water level of the gauge.
+   * @param {object} floodLevels An object containing the flood stage values (e.g., action, minor, moderate, major).
+   * @returns {{status: string, color: Cesium.Color, description: string}} An object with the status name, Cesium color, and a brief description.
+   */
+  function getGaugeStatus(currentLevel, floodLevels) {
+    // Handle cases where flood levels are not defined for a gauge
+    if (!floodLevels) {
+      return { status: 'Normal', color: Cesium.Color.GREEN, description: 'The water level is within the normal range.' };
+    }
+
+    const {
+      action_stage: action,
+      minor_flood_stage: minor,
+      moderate_flood_stage: moderate,
+      major_flood_stage: major
+    } = floodLevels;
+
+    if (currentLevel === null || currentLevel === undefined) {
+      return { status: 'Unknown', color: Cesium.Color.GRAY, description: 'Current water level is not available.' };
+    }
+
+    if (major && currentLevel >= major) {
+      return { status: 'Major Flood', color: Cesium.Color.DARKRED, description: 'Extensive inundation of structures and roads.' };
+    }
+    if (moderate && currentLevel >= moderate) {
+      return { status: 'Moderate Flood', color: Cesium.Color.RED, description: 'Some inundation of structures and roads near the stream.' };
+    }
+    if (minor && currentLevel >= minor) {
+      return { status: 'Minor Flood', color: Cesium.Color.ORANGE, description: 'Minimal or no property damage, but possibly some public threat.' };
+    }
+    if (action && currentLevel >= action) {
+      return { status: 'Action Stage', color: Cesium.Color.YELLOW, description: 'Water level is approaching bankfull. Action is necessary.' };
+    }
+    // Assuming a 'low' threshold isn't provided, we'll consider anything below 'action' as normal.
+    if (action && currentLevel < action) {
+        return { status: 'Normal', color: Cesium.Color.GREEN, description: 'The water level is within the normal range.' };
+    }
+
+    // Fallback for gauges without defined stages
+    return { status: 'Normal', color: Cesium.Color.GREEN, description: 'The water level is within the normal range.' };
+  }
   // fetch and process camera data
   async function fetchAndProcessCameras() {
     try {
@@ -376,25 +420,52 @@ window.onload = async function () {
         activeGaugeInfoBox = gaugeInfoBoxContainer;
 
         // Fetch forecast data
-        // --- FIX: Use the correct '/stageflow' endpoint for forecast data ---
-        const forecastUrl = `https://api.water.noaa.gov/nwps/v1/gauges/${gaugeId}/stageflow`;
-        console.log('Requesting gauge forecast data from:', forecastUrl);
+        const gaugeDetailsUrl = `https://api.water.noaa.gov/nwps/v1/gauges/${gaugeId}`;
+        console.log('Requesting gauge details from:', gaugeDetailsUrl);
+
         try {
-          const forecastRes = await fetchWithTimeout(forecastUrl, {}, 10000);
+          const forecastRes = await fetchWithTimeout(gaugeDetailsUrl, {}, 10000);
           if (!forecastRes.ok) throw new Error(`API Error ${forecastRes.status}`);
           const forecastData = await forecastRes.json();
 
           let forecastHtml = '<p>No forecast data available.</p>';
           
-          // --- FIX: Check for forecast data first, then fall back to observed data ---
-          const forecastInfo = forecastData.forecast;
-          const observedInfo = forecastData.observed;
+          // --- FIX: Handle different API response structures for gauge data ---
+          // The `/gauges/{id}` endpoint returns data in `status.observed`, not `observed.data[]`.
+          const observedStatus = forecastData.status?.observed;
+          const floodLevels = forecastData.flood?.levels || forecastData.flood?.categories; // Handle both `levels` and `categories` structures
+          const currentStage = observedStatus?.primary;
 
-          if (forecastInfo && forecastInfo.data && forecastInfo.data.length > 0) {
-            // Use the latest forecast data
-            const latestData = forecastInfo.data[0];
-            const stage = latestData.primary;
-            const flow = latestData.secondary;
+          // Primary case: We have a current, valid observation reading from the `status` object.
+          if (currentStage !== undefined && currentStage > -999) {
+            // Get status even if flood levels are not defined. The function will handle it.
+            const status = getGaugeStatus(currentStage, floodLevels);
+            
+            forecastHtml = `
+              <div class="gauge-forecast-details">
+                <div class="gauge-metric">
+                  <span class="gauge-label">Current Water Level</span>
+                  <span class="gauge-value">${currentStage.toFixed(2)} ${observedStatus.primaryUnit}</span>
+                </div>
+                <div class="gauge-metric">
+                  <span class="gauge-label">Status</span>
+                  <span class="gauge-value" style="color: ${status.color.toCssColorString()};">${status.status}</span>
+                </div>
+              </div>
+              <div class="gauge-status-legend">
+                <div class="gauge-legend-item"><span class="dot" style="background-color: ${Cesium.Color.GREEN.toCssColorString()};"></span> Normal</div>
+                <div class="gauge-legend-item"><span class="dot" style="background-color: ${Cesium.Color.YELLOW.toCssColorString()};"></span> Action</div>
+                <div class="gauge-legend-item"><span class="dot" style="background-color: ${Cesium.Color.ORANGE.toCssColorString()};"></span> Minor</div>
+                <div class="gauge-legend-item"><span class="dot" style="background-color: ${Cesium.Color.RED.toCssColorString()};"></span> Moderate</div>
+                <div class="gauge-legend-item"><span class="dot" style="background-color: ${Cesium.Color.DARKRED.toCssColorString()};"></span> Major</div>
+              </div>
+              <p class="gauge-timestamp">Observation valid at: ${new Date(observedStatus.validTime).toLocaleString()}</p>
+            `;
+          } else if (forecastData.forecast && forecastData.forecast.data && forecastData.forecast.data.length > 0) {
+            const forecastInfo = forecastData.forecast;
+            // Fallback to forecast if observation is missing
+            const latestForecast = forecastInfo.data[0];
+            const stage = latestForecast.primary;
             forecastHtml = `
               <div class="gauge-forecast-details">
                 <div class="gauge-metric">
@@ -402,30 +473,17 @@ window.onload = async function () {
                   <span class="gauge-value">${stage.toFixed(2)} ${forecastInfo.primaryUnits}</span>
                 </div>
                 <div class="gauge-metric">
-                  <span class="gauge-label">Forecast Flow</span>
-                  <span class="gauge-value">${flow.toLocaleString()} ${forecastInfo.secondaryUnits}</span>
+                  <span class="gauge-label">Status</span>
+                  <span class="gauge-value">Forecast Only</span>
                 </div>
               </div>
-              <p class="gauge-timestamp">Forecast valid at: ${new Date(latestData.validTime).toLocaleString()}</p>
+              <p class="gauge-timestamp">Forecast valid at: ${new Date(latestForecast.validTime).toLocaleString()}</p>
             `;
-          } else if (observedInfo && observedInfo.data && observedInfo.data.length > 0) {
-            // Fallback to the latest observed data
-            const latestData = observedInfo.data[observedInfo.data.length - 1]; // Get the most recent observation
-            const stage = latestData.primary;
-            const flow = latestData.secondary;
-            forecastHtml = `
-              <div class="gauge-forecast-details">
-                <div class="gauge-metric">
-                  <span class="gauge-label">Latest Observed Stage</span>
-                  <span class="gauge-value">${stage.toFixed(2)} ${observedInfo.primaryUnits}</span>
-                </div>
-                <div class="gauge-metric">
-                  <span class="gauge-label">Latest Observed Flow</span>
-                  <span class="gauge-value">${flow > -999 ? flow.toLocaleString() : 'N/A'} ${observedInfo.secondaryUnits}</span>
-                </div>
-              </div>
-              <p class="gauge-timestamp">Observation valid at: ${new Date(latestData.validTime).toLocaleString()}</p>
-            `;
+          } else if (forecastData.observed) {
+            // Case where `observed` object exists but has no valid data.
+            forecastHtml = `<p>Current observation data is not available for this gauge.</p>`;
+          } else {
+            forecastHtml = `<p>No current observation or forecast data is available.</p>`;
           }
           gaugeInfoBoxContainer.innerHTML = `
             <div class="gauge-info-box">
@@ -3443,7 +3501,8 @@ window.onload = async function () {
       'bbox.ymin': south.toFixed(4), // Corresponds to south latitude
       'bbox.xmax': east.toFixed(4),   // Corresponds to east longitude
       'bbox.ymax': north.toFixed(4),  // Corresponds to north latitude
-      'srid': 'EPSG_4326'             // Specify coordinates are in WGS84 (lat/lon)
+      'srid': 'EPSG_4326',             // Specify coordinates are in WGS84 (lat/lon)
+      'include': 'observed,flood'      // Request observed and flood level data
     });
     const url = `${baseUrl}?${params.toString()}`;
 
@@ -3503,18 +3562,26 @@ window.onload = async function () {
   function renderRiverGauges(gauges) {
     if (!gauges || gauges.length === 0) return;
 
-    // --- FIX: Use PinBuilder to create a reliable icon and avoid image loading errors ---
     const pinBuilder = new Cesium.PinBuilder();
-    const gaugePin = pinBuilder.fromColor(Cesium.Color.DODGERBLUE, 24).toDataURL();
 
     gauges.forEach(gauge => {
       const lat = gauge.latitude;
       const lon = gauge.longitude;
+
+      // Determine pin color based on current status
+      const currentLevel = gauge.observed?.data?.[gauge.observed.data.length - 1]?.primary;
+      const floodLevels = gauge.flood?.levels;
+      let status = { color: Cesium.Color.DODGERBLUE }; // Default color
+      if (currentLevel !== undefined && floodLevels) {
+        status = getGaugeStatus(currentLevel, floodLevels);
+      }
+      const gaugePin = pinBuilder.fromColor(status.color, 24).toDataURL();
+
       const entity = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat),
         billboard: {
           image: gaugePin,
-          width: 24, // The pin is 24x24, so this is correct
+          width: 24,
           height: 24,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
