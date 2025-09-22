@@ -1,6 +1,6 @@
 // initialize app when window loads
 window.onload = async function () {
-  // fetch config
+  // 1. Fetch configuration from server including Cesium Ion access token
   try {
     const response = await fetch("/config");
     const config = await response.json();
@@ -9,6 +9,12 @@ window.onload = async function () {
       Cesium.Ion.defaultAccessToken = config.cesiumIonToken;
     } else {
       console.error("No Cesium Ion token provided in server config");
+    }
+
+    if (config.codetrApiKey) {
+      codetrApiKey = config.codetrApiKey;
+    } else {
+      console.error("No Co-DETR API key provided in server config");
     }
   } catch (error) {
     console.error("Failed to load configuration:", error);
@@ -208,7 +214,14 @@ window.onload = async function () {
           <div class="carousel-slide ${
             index === 0 ? "active" : ""
           }" data-index="${index}">
-            <img src="${img}" class="carousel-image" />
+            <img src="${img}" class="carousel-image" onclick="openFullscreenImage(this)" />
+            <button class="detect-btn" onclick="detectImage(this, '${img.replace(
+              /'/g,
+              "\\'"
+            )}')">
+              <i class="fas fa-search"></i>
+              <span>Detect</span>
+            </button>
           </div>
         `;
         })
@@ -312,6 +325,111 @@ window.onload = async function () {
       </div>
     `;
   }
+
+  // Function to handle image detection API call (template)
+  window.detectImage = async function (buttonElement, imageUrl) {
+    console.log("Detecting objects in image:", imageUrl);
+
+    // Add a loading state to the button
+    buttonElement.classList.add("loading");
+    buttonElement.disabled = true;
+    const originalText = buttonElement.querySelector("span").textContent;
+    buttonElement.querySelector("span").textContent = "Detecting...";
+
+    try {
+      if (!codetrApiKey) {
+        throw new Error("Co-DETR API Key is not configured.");
+      }
+
+      // 1. Fetch the image through the server-side proxy to avoid CORS issues
+      const proxyUrl = `/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+      const imageResponse = await fetch(proxyUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+      }
+      const imageBlob = await imageResponse.blob();
+
+      // 2. Create a File object from the blob
+      const imageFile = new File([imageBlob], "image.png", {
+        type: "image/png",
+      });
+
+      // 3. Create FormData and append the file and score threshold
+      const formData = new FormData();
+      formData.append("file", imageFile);
+      formData.append("score-treshold", "0.5");
+
+      // 4. Make the API call
+      const detectUrl =
+        "https://codetr-api-server-w-key.cis230083.projects.jetstream-cloud.org/detect";
+      const detectResponse = await fetch(detectUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${codetrApiKey}`,
+        },
+        body: formData,
+      });
+
+      if (!detectResponse.ok) {
+        let errorBody = "Could not read error response.";
+        try {
+          // Try to parse as JSON first, as many APIs do.
+          const errorJson = await detectResponse.json();
+          errorBody = JSON.stringify(errorJson);
+        } catch (e) {
+          // If not JSON, read as text.
+          errorBody = await detectResponse.text();
+        }
+        throw new Error(`API Error: ${detectResponse.status} - ${errorBody}`);
+      }
+      
+      const contentType = detectResponse.headers.get("content-type");
+      const imageElement = buttonElement.parentElement.querySelector("img");
+
+      if (contentType && contentType.startsWith("image/")) {
+        // Handle image response
+        console.log("Detection API returned an image.");
+        const imageBlob = await detectResponse.blob();
+        const newImageUrl = URL.createObjectURL(imageBlob);
+        
+        if (imageElement) {
+          imageElement.src = newImageUrl;
+        }
+
+      } else if (contentType && contentType.includes("application/json")) {
+        // Handle JSON response (existing logic)
+        const results = await detectResponse.json();
+        console.log("Detection results:", results);
+
+        if (imageElement && results.length > 0) {
+          const slide = buttonElement.closest(".carousel-slide");
+          if (slide) {
+            slide.querySelectorAll(".detection-box").forEach((box) => box.remove());
+            results.forEach((res) => {
+              const box = document.createElement("div");
+              box.className = "detection-box";
+              box.style.left = `${(res.box.x1 / imageElement.naturalWidth) * 100}%`;
+              box.style.top = `${(res.box.y1 / imageElement.naturalHeight) * 100}%`;
+              box.style.width = `${((res.box.x2 - res.box.x1) / imageElement.naturalWidth) * 100}%`;
+              box.style.height = `${((res.box.y2 - res.box.y1) / imageElement.naturalHeight) * 100}%`;
+              box.setAttribute("data-label", `${res.label} (${res.score.toFixed(2)})`);
+              slide.appendChild(box);
+            });
+          }
+        }
+      } else {
+        throw new Error(`Detection API returned an unexpected content type: ${contentType}.`);
+      }
+    } catch (error) {
+      console.error("Detection API call failed:", error);
+      alert("Image detection failed. See console for details.");
+    } finally {
+      // Restore button to its original state
+      buttonElement.classList.remove("loading");
+      buttonElement.disabled = false;
+      buttonElement.querySelector("span").textContent = originalText;
+    }
+  };
 
   // Initialize the Cesium Viewer with specific options
   const imageryProviderViewModels = [
@@ -1564,22 +1682,148 @@ window.onload = async function () {
     }
   };
 
-  function setupModalClose() {
-    const modal = document.getElementById("imageModal");
-    const closeBtn = document.getElementById("modalCloseBtn");
-    if (closeBtn) {
-      closeBtn.onclick = function (e) {
-        e.stopPropagation();
-        modal.style.display = "none";
-        document.getElementById("modalImg").src = "";
-      };
+  // --- Fullscreen Image Modal Logic ---
+  const modal = document.getElementById("imageModal");
+  const modalImg = document.getElementById("modalImg");
+  const modalCloseBtn = document.getElementById("modalCloseBtn");
+
+  let isPanning = false;
+  let startX, startY, transformX = 0, transformY = 0, scale = 1;
+
+  function resetModalTransform() {
+    scale = 1;
+    transformX = 0;
+    transformY = 0;
+    modalImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+  }
+
+  window.openFullscreenImage = function (imageElement) {
+    if (modal && modalImg && imageElement) {
+      const src = imageElement.src; // Get the CURRENT src, which might be a blob URL
+      resetModalTransform();
+      modal.style.display = "block";
+      modalImg.src = src;
     }
+  };
+
+  function closeModal() {
     if (modal) {
-      modal.onclick = function (event) {
-        if (event.target === modal) {
-          modal.style.display = "none";
-          document.getElementById("modalImg").src = "";
-        }
+      modal.style.display = "none";
+      modalImg.src = "";
+      resetModalTransform();
+    }
+  }
+
+  if (modalCloseBtn) {
+    modalCloseBtn.onclick = closeModal;
+  }
+
+  if (modal) {
+    modal.onclick = function (event) {
+      // Close if clicking on the background, not the image itself
+      if (event.target === modal || event.target.id === 'modalImageWrapper') {
+        closeModal();
+      }
+    };
+
+    modalImg.addEventListener('mousedown', (e) => {
+      // Only allow panning if the image is zoomed in.
+      if (scale <= 1) {
+        modalImg.style.cursor = 'grab'; // Show grab cursor but don't pan
+        return;
+      }
+      e.preventDefault();
+      isPanning = true;
+      startX = e.clientX - transformX;
+      startY = e.clientY - transformY;
+      modalImg.classList.add('panning');
+      modalImg.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mouseup', () => {
+      isPanning = false;
+      modalImg.classList.remove('panning');
+      modalImg.style.cursor = scale > 1 ? 'grab' : 'default';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isPanning || scale <= 1) return;
+      e.preventDefault();
+
+      let newTransformX = e.clientX - startX;
+      let newTransformY = e.clientY - startY;
+
+      // Calculate the boundaries
+      const rect = modalImg.getBoundingClientRect();
+      const containerRect = modal.getBoundingClientRect();
+
+      const maxX = Math.max(0, (rect.width - containerRect.width) / 2);
+      const maxY = Math.max(0, (rect.height - containerRect.height) / 2);
+
+      // Clamp the translation to the calculated boundaries
+      transformX = Math.max(-maxX, Math.min(maxX, newTransformX));
+      transformY = Math.max(-maxY, Math.min(maxY, newTransformY));
+
+      modalImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+    });
+
+    modal.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const scaleAmount = 0.1;
+      const oldScale = scale;
+
+      if (e.deltaY < 0) {
+        // Zoom in
+        scale += scaleAmount;
+      } else {
+        // Zoom out
+        scale = Math.max(0.1, scale - scaleAmount);
+      }
+      
+      // Update cursor based on new scale
+      modalImg.style.cursor = scale > 1 ? 'grab' : 'default';
+
+
+      // Get mouse position relative to the viewport
+      const rect = modalImg.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      // Adjust translation to keep the point under the mouse stationary
+      transformX = transformX - (mouseX / oldScale) * (scale - oldScale);
+      transformY = transformY - (mouseY / oldScale) * (scale - oldScale);
+
+      // If zoomed out completely, reset the pan
+      if (scale <= 1) {
+          transformX = 0;
+          transformY = 0;
+          scale = 1; // Ensure scale is exactly 1
+      } else {
+        // After zooming, re-clamp the position to stay within bounds
+        const newImageWidth = modalImg.naturalWidth * scale;
+        const newImageHeight = modalImg.naturalHeight * scale;
+        const containerRect = modal.getBoundingClientRect();
+
+        const maxX = Math.max(0, (newImageWidth - containerRect.width) / 2);
+        const maxY = Math.max(0, (newImageHeight - containerRect.height) / 2);
+
+        transformX = Math.max(-maxX, Math.min(maxX, transformX));
+        transformY = Math.max(-maxY, Math.min(maxY, transformY));
+      }
+
+      modalImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+    });
+  }
+
+  function setupModalClose() {
+    // This function is now partially handled by the new modal logic above,
+    // but we can keep it for safety or remove it if fully redundant.
+    // For now, let's ensure it doesn't conflict.
+    const legacyCloseBtn = document.getElementById("modalCloseBtn");
+    if (legacyCloseBtn) {
+      legacyCloseBtn.onclick = function (e) {
+        e.stopPropagation();
+        closeModal();
       };
     }
   }

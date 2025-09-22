@@ -182,6 +182,7 @@ app.get("/config", (req, res) => {
   // Only expose specific environment variables needed by the client
   res.json({
     cesiumIonToken: process.env.CESIUM_ION_TOKEN || "",
+    codetrApiKey: process.env.CODETR_API_KEY || "",
   });
 });
 
@@ -249,6 +250,29 @@ app.get("/em-event-data", async (req, res) => {
       error: "Internal server error",
       message: error.message,
     });
+  }
+});
+
+// Image proxy to bypass client-side CORS issues
+app.get("/proxy-image", async (req, res) => {
+  const { url: imageUrl } = req.query;
+
+  if (!imageUrl) {
+    return res.status(400).send("Image URL is required");
+  }
+
+  try {
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+    }
+
+    // Set the correct content type and pipe the image back to the client
+    res.setHeader("Content-Type", imageResponse.headers.get("content-type"));
+    imageResponse.body.pipe(res);
+  } catch (error) {
+    console.error("Image proxy error:", error);
+    res.status(502).send("Failed to proxy image"); // 502 Bad Gateway
   }
 });
 
