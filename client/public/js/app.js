@@ -337,18 +337,24 @@ window.onload = async function () {
     }),
   });
 
-  // set initial camera view to Florida
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(
-      -81.20002771749041,
-      28.60263460486482,
-      100000
-    ),
+  // Define the home camera view options
+  const homeCameraView = {
+    destination: Cesium.Cartesian3.fromDegrees(-81.2015, 28.5812, 2000), // SLIGHTLY *SOUTH* of UCF
     orientation: {
       heading: Cesium.Math.toRadians(0),
       pitch: Cesium.Math.toRadians(-45),
       roll: 0.0,
     },
+    duration: 0 // Set to 0 for an instant view on load
+  };
+
+  // Set the initial camera view by flying to it instantly. This correctly frames the target.
+  viewer.camera.flyTo(homeCameraView);
+
+  // Override the default home button behavior to fly to our custom initial view
+  viewer.homeButton.viewModel.command.beforeExecute.addEventListener(e => {
+    e.cancel = true; // Prevent the default action
+    viewer.camera.flyTo({ ...homeCameraView, duration: 2.0 }); // Use a smooth flight for the button click
   });
 
   // Add camera info box container to the DOM
