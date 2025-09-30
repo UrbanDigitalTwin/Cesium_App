@@ -57,6 +57,10 @@ window.onload = async function () {
   let gaugeEntities = [];
   let activeGaugeInfoBox = null;
 
+  // --- CO2 Sensor Variables ---
+  let sensorEntities = [];
+  let activeSensorInfoBox = null;
+
   /**
    * Determines the status and color of a river gauge based on its current water level
    * compared to its defined flood stages.
@@ -761,6 +765,14 @@ window.onload = async function () {
 
         cameraInfoContainer.style.display = "block";
         activeCameraInfoBox = cameraInfoContainer;
+      }
+      // Check if it's a CO2 sensor entity
+      else if (picked.id.properties && picked.id.properties.isCo2Sensor) {
+        const props = picked.id.properties;
+        const sensorData = props.sensorData.getValue();
+        if (sensorData) {
+          showSensorInfoBox(sensorData);
+        }
       } else {
         if (activeCameraInfoBox) {
           activeCameraInfoBox.style.display = "none";
@@ -771,6 +783,11 @@ window.onload = async function () {
           gaugeInfoBoxContainer.classList.add('hidden');
           gaugeInfoBoxContainer.innerHTML = '';
           activeGaugeInfoBox = null;
+        }
+        if (activeSensorInfoBox) {
+          activeSensorInfoBox.classList.add('hidden');
+          activeSensorInfoBox.innerHTML = '';
+          activeSensorInfoBox = null;
         }
       }
     } else {
@@ -783,6 +800,11 @@ window.onload = async function () {
         gaugeInfoBoxContainer.classList.add('hidden');
         gaugeInfoBoxContainer.innerHTML = '';
         activeGaugeInfoBox = null;
+      }
+      if (activeSensorInfoBox) {
+        activeSensorInfoBox.classList.add('hidden');
+        activeSensorInfoBox.innerHTML = '';
+        activeSensorInfoBox = null;
       }
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -3056,6 +3078,7 @@ window.onload = async function () {
       resetAllFiltersUI(); // Ensure filter UI is reset
       clearWeatherAlerts();
       clearRiverGauges();
+      clearSensorEntities();
     }
     originalBoundingBoxCartesians = null;
 
@@ -3482,6 +3505,10 @@ window.onload = async function () {
     weatherAlertEntities = [];
   }
 
+  function clearSensorEntities() {
+    sensorEntities.forEach(entity => viewer.entities.remove(entity));
+    sensorEntities = [];
+  }
   function clearRiverGauges() {
     gaugeEntities.forEach(entity => {
       if (viewer.entities.contains(entity)) {
@@ -3490,6 +3517,110 @@ window.onload = async function () {
     });
     gaugeEntities = [];
   }
+
+  /**
+   * Fetches the latest CO2 sensor reading and displays it on the map if it's within the bounding box.
+   * @param {Cesium.Rectangle | Cesium.PolygonHierarchy} bounds The bounding box for the analysis.
+   * @returns {Promise<object>} An object containing the sensor data or an error message.
+   */
+  async function fetchCo2Sensor(bounds) {
+    clearSensorEntities();
+
+    try {
+      const response = await fetch('/sensor-data');
+      if (!response.ok) {
+        const errorData = await response.json();
+        return { message: `Sensor API Error: ${errorData.error || response.status}` };
+      }
+      const data = await response.json();
+
+      if (!data.events || data.events.length === 0) {
+        return { message: 'No sensor events found.' };
+      }
+
+      const latestEvent = data.events[0];
+      const readings = latestEvent.body?.readings;
+
+      if (!readings || readings.length === 0) {
+        return { message: 'No sensor readings in the latest event.' };
+      }
+
+      // Assuming we only care about the first reading in the array for now.
+      const sensorData = readings[0];
+      const { lat, lon } = sensorData;
+
+      if (lat === undefined || lon === undefined) {
+        return { message: 'Sensor data is missing location.' };
+      }
+
+      // Check if the sensor is within the bounding box
+      const sensorCartographic = Cesium.Cartographic.fromDegrees(lon, lat);
+      const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
+        bounds :
+        Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+
+      if (!Cesium.Rectangle.contains(analysisBounds, sensorCartographic)) {
+        return { message: 'Sensor is outside the selected area.' };
+      }
+
+      // Render the sensor on the map
+      const pinBuilder = new Cesium.PinBuilder();
+      const sensorPin = pinBuilder.fromColor(Cesium.Color.DEEPSKYBLUE, 32).toDataURL();
+
+      const entity = viewer.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        billboard: {
+          image: sensorPin,
+          width: 32,
+          height: 32,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        properties: {
+          isCo2Sensor: true,
+          sensorData: sensorData
+        }
+      });
+      sensorEntities.push(entity);
+
+      return { sensorData: sensorData };
+
+    } catch (error) {
+      console.error('Failed to fetch sensor data:', error);
+      return { message: 'Error fetching sensor data.' };
+    }
+  }
+
+  function showSensorInfoBox(sensorData) {
+    const container = document.getElementById("gaugeInfoBox"); // Re-using the gauge container
+    const { co2, humidity, temperature, time } = sensorData;
+
+    const html = `
+      <div class="gauge-info-box sensor-info-box">
+        <button class="gauge-info-close">&times;</button>
+        <h4>CO₂ Digital Twin</h4>
+        <div class="gauge-forecast-details">
+          <div class="gauge-metric">
+            <span class="gauge-label"><i class="fas fa-wind"></i> CO₂ Level</span>
+            <span class="gauge-value">${co2.toFixed(0)} ppm</span>
+          </div>
+          <div class="gauge-metric">
+            <span class="gauge-label"><i class="fas fa-thermometer-half"></i> Temperature</span>
+            <span class="gauge-value">${temperature.toFixed(1)} °C</span>
+          </div>
+          <div class="gauge-metric">
+            <span class="gauge-label"><i class="fas fa-tint"></i> Humidity</span>
+            <span class="gauge-value">${humidity.toFixed(1)}%</span>
+          </div>
+        </div>
+        <p class="gauge-timestamp">Last Reading: ${new Date(time * 1000).toLocaleString()}</p>
+      </div>
+    `;
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+    container.querySelector('.gauge-info-close').onclick = () => container.classList.add('hidden');
+    activeSensorInfoBox = container;
+  }
+
   async function fetchTemperatureData(bounds) {
     if (temperatureAnalysisRunning) {
       return { message: 'Analysis already in progress.' };
@@ -4286,6 +4417,43 @@ window.onload = async function () {
         </p>
         <p><strong>Source:</strong> <a href="https://api.water.noaa.gov/nwps/v1/docs" target="_blank">NOAA NWPS API</a></p>
       `
+    }, {
+      id: 'co2-sensor',
+      label: 'CO2 Digital Twin',
+      description: 'Shows the latest reading from a custom CO2 sensor if it is within the selected area.',
+      analysisFn: fetchCo2Sensor,
+      displayFn: (result, el) => {
+        if (result.sensorData) {
+          const { co2, temperature, humidity } = result.sensorData;
+          el.innerHTML = `
+            <div class="sensor-result">
+              <div class="sensor-metric">
+                <span class="sensor-label">CO₂:</span>
+                <span class="sensor-value">${co2.toFixed(0)} ppm</span>
+              </div>
+              <div class="sensor-metric">
+                <span class="sensor-label">Temp:</span>
+                <span class="sensor-value">${temperature.toFixed(1)}°C</span>
+              </div>
+              <div class="sensor-metric">
+                <span class="sensor-label">Humidity:</span>
+                <span class="sensor-value">${humidity.toFixed(1)}%</span>
+              </div>
+            </div>
+            <p class="gauge-instructions">Click the sensor icon <i class="fas fa-broadcast-tower" style="color: #00BFFF;"></i> on the map for details.</p>
+          `;
+        } else {
+          el.textContent = result.message || 'Could not retrieve sensor data.';
+        }
+      },
+      metadata: `
+        <h5>CO₂ Digital Twin Sensor</h5>
+        <p>
+          Fetches the most recent data point from a custom environmental sensor via the Blues Notehub API.
+          The sensor will only be displayed if its last known coordinates fall within the active bounding box.
+        </p>
+        <p><strong>Source:</strong> Blues Notehub API</p>
+      `
     }
   ];
 
@@ -4444,6 +4612,7 @@ window.onload = async function () {
       resetAllFiltersUI();
       clearWeatherAlerts();
       clearRiverGauges();
+      clearSensorEntities();
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');

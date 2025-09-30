@@ -1848,6 +1848,27 @@ html, body {
   border-radius: 50%;
 }
 
+/* --- CO2 Sensor Result Display --- */
+.sensor-result {
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 4px;
+  text-align: center;
+}
+.sensor-metric {
+  display: flex;
+  flex-direction: column;
+}
+.sensor-label {
+  font-size: 12px;
+  color: #bbb;
+}
+.sensor-value {
+  font-size: 16px;
+  font-weight: bold;
+  color: #eee;
+}
+
   /* Fullscreen Image Modal */
   .modal {
     display: none;

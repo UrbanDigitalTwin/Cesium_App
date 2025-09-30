@@ -276,6 +276,41 @@ app.get("/proxy-image", async (req, res) => {
   }
 });
 
+// Blues Notehub Sensor API proxy endpoint
+app.get("/sensor-data", async (req, res) => {
+  const projectUID = process.env.NOTEHUB_PROJECT_UID;
+  const accessToken = process.env.NOTEHUB_ACCESS_TOKEN;
+
+  if (!projectUID || !accessToken) {
+    console.error("Notehub credentials are not configured on the server.");
+    return res
+      .status(500)
+      .json({ error: "Sensor API is not configured." });
+  }
+
+  const url = `https://api.notefile.net/v1/projects/${projectUID}/events?pageSize=1&sortOrder=desc&files=sensors.qo`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(`Notehub API error: ${response.status} - ${errorBody}`);
+      return res.status(response.status).json({ error: `Notehub API error: ${response.status}` });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (e) {
+    console.error("Failed to fetch Notehub sensor data:", e);
+    res.status(500).json({ error: "Failed to fetch sensor data." });
+  }
+});
+
 // AirNow proxy endpoint (integrated from airnow-proxy.js)
 app.get("/airnow", async (req, res) => {
   const zip = req.query.zip;
