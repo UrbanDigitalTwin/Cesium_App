@@ -3563,16 +3563,34 @@ window.onload = async function () {
         return { message: 'Sensor is outside the selected area.' };
       }
 
-      // Render the sensor on the map
-      const pinBuilder = new Cesium.PinBuilder();
-      const sensorPin = pinBuilder.fromColor(Cesium.Color.DEEPSKYBLUE, 32).toDataURL();
+      // --- FIX: Create a pin from a Font Awesome icon using a canvas ---
+      const iconSize = 48;
+      const canvas = document.createElement('canvas');
+      canvas.width = iconSize;
+      canvas.height = iconSize;
+      const context = canvas.getContext('2d');
+
+      // Wait for the Font Awesome font to be ready before drawing
+      // This ensures the icon renders correctly on first load
+      await document.fonts.load('900 48px "Font Awesome 6 Free"');
+
+      context.font = `900 ${iconSize}px "Font Awesome 6 Free"`;
+      context.fillStyle = Cesium.Color.DEEPSKYBLUE.toCssColorString();
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+
+      // Unicode for 'fa-broadcast-tower' is \uf519
+      context.fillText('\uf519', iconSize / 2, iconSize / 2);
+
+      const sensorPinUrl = canvas.toDataURL();
+      // --- End of Fix ---
 
       const entity = viewer.entities.add({
         position: Cesium.Cartesian3.fromDegrees(lon, lat),
         billboard: {
-          image: sensorPin,
-          width: 32,
-          height: 32,
+          image: sensorPinUrl,
+          width: iconSize,
+          height: iconSize,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         properties: {
