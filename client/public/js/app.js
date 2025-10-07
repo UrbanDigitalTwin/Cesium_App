@@ -2194,6 +2194,16 @@ window.onload = async function () {
   const bbTitle = document.querySelector('.bounding-box-text');
   const bbDescription = document.querySelector('.bounding-box-description');
 
+  // --- Bounding Box Stats Elements ---
+  const bbStatsBtn = document.getElementById('bbStatsBtn');
+  const bbStatsPopup = document.getElementById('bbStatsPopup');
+  const bbStatsCloseBtn = document.getElementById('bbStatsCloseBtn');
+  const bbStatsArea = document.getElementById('bb-stats-area');
+  const bbStatsPerimeter = document.getElementById('bb-stats-perimeter');
+  const bbStatsCenter = document.getElementById('bb-stats-center');
+  const copyAreaBtn = document.getElementById('copy-area-btn');
+  const copyPerimeterBtn = document.getElementById('copy-perimeter-btn');
+  const copyCenterBtn = document.getElementById('copy-center-btn');
   // --- Bounding Box Filter Dialog Elements ---
   const bbFilterDialog = document.getElementById('bbFilterDialog');
   const bbFilterToggleBtn = document.getElementById('bbFilterToggleBtn');
@@ -2219,6 +2229,7 @@ window.onload = async function () {
     bbEditBtn.disabled = true;
     bbActivateBtn.disabled = true;
     bbDeleteBtn.disabled = true;
+    bbStatsBtn.classList.add('hidden');
 
     // Reset title attribute for activate button
     bbActivateBtn.removeAttribute('title');
@@ -2248,6 +2259,7 @@ window.onload = async function () {
         bbEditBtn.disabled = false;
         bbActivateBtn.disabled = false;
         bbDeleteBtn.disabled = false;
+        bbStatsBtn.classList.remove('hidden');
 
         // Check if any filter is selected
         const anyFilterSelected = Object.values(filterState).some(v => v);
@@ -2326,6 +2338,59 @@ window.onload = async function () {
   };
   bbActivateBtn.onclick = handleActivateBoundingBox;
   bbDeleteBtn.onclick = handleDeleteBoundingBox;
+  bbStatsBtn.onclick = () => {
+    bbStatsPopup.classList.toggle('visible');
+  };
+  bbStatsCloseBtn.onclick = () => {
+    bbStatsPopup.classList.remove('visible');
+  };
+
+  // --- Bounding Box Stats Copy Logic ---
+  let currentStats = {}; // To hold the raw data for copying
+
+  function copyToClipboard(text, buttonElement) {
+    navigator.clipboard.writeText(text).then(() => {
+      const icon = buttonElement.querySelector('i');
+      const originalIconClass = icon.className;
+      const originalTitle = buttonElement.title;
+
+      // Provide visual feedback
+      icon.className = 'fas fa-check'; // Change to checkmark
+      buttonElement.title = 'Copied!';
+
+      // Revert after a short delay
+      setTimeout(() => {
+        icon.className = originalIconClass;
+        buttonElement.title = originalTitle;
+      }, 1500);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      alert('Failed to copy to clipboard.');
+    });
+  }
+
+  if (copyAreaBtn) {
+    copyAreaBtn.onclick = (e) => {
+      e.stopPropagation();
+      const text = `${currentStats.areaKm2.toFixed(4)} km² / ${currentStats.areaMi2.toFixed(4)} mi²`;
+      copyToClipboard(text, copyAreaBtn);
+    };
+  }
+  if (copyPerimeterBtn) {
+    copyPerimeterBtn.onclick = (e) => {
+      e.stopPropagation();
+      const text = `${currentStats.perimeterKm.toFixed(4)} km / ${currentStats.perimeterMi.toFixed(4)} mi`;
+      copyToClipboard(text, copyPerimeterBtn);
+    };
+  }
+  if (copyCenterBtn) {
+    copyCenterBtn.onclick = (e) => {
+      e.stopPropagation();
+      const text = `${currentStats.lat.toFixed(6)}, ${currentStats.lon.toFixed(6)}`;
+      copyToClipboard(text, copyCenterBtn);
+    };
+  }
+
 
   // Listener for the Escape key to cancel drawing
   const escapeKeyListener = (event) => {
@@ -2858,6 +2923,7 @@ window.onload = async function () {
     }
 
     updateBoundingBoxUI('active');
+    calculateAndShowBoundingBoxStats();
   }
 
   // Add click listener to the overlay to close the dialog
@@ -2868,6 +2934,8 @@ window.onload = async function () {
   }
   function handleCancelBoundingBox() {
     bbFilterDialog.classList.add('hidden'); // Hide the filter dialog
+    bbStatsPopup.classList.remove('visible');
+
     viewer.scene.screenSpaceCameraController.enableInputs = true; // Re-enable map controls
     document.removeEventListener('keydown', escapeKeyListener);
     if (boundingBoxHandler) {
@@ -3080,6 +3148,7 @@ window.onload = async function () {
       clearRiverGauges();
       clearSensorEntities();
     }
+    calculateAndShowBoundingBoxStats(); // Recalculate stats on save
     originalBoundingBoxCartesians = null;
 
     // Reset UI
@@ -3106,6 +3175,7 @@ window.onload = async function () {
     // Revert to original coordinates
     if (currentBoundingBox && currentBoundingBox.rectangle && originalBoundingBoxCartesians) {
       // Revert to the static, original rectangle
+      currentBoundingBox.rectangle.coordinates = new Cesium.CallbackProperty(() => originalBoundingBoxCartesians, false);
       currentBoundingBox.rectangle.coordinates = originalBoundingBoxCartesians;
       resetAllFiltersUI(); // Ensure filter UI is reset
     }
@@ -3113,6 +3183,7 @@ window.onload = async function () {
 
     bbEditBtn.textContent = 'Edit';
     updateBoundingBoxUI('active');
+    calculateAndShowBoundingBoxStats(); // Recalculate stats
     console.log('Canceled bounding box edits, reverting to previous state.');
   }
   
@@ -4629,11 +4700,134 @@ window.onload = async function () {
       clearTemperatureGrid();
       resetAllFiltersUI();
       clearWeatherAlerts();
+      bbStatsPopup.classList.remove('visible');
       clearRiverGauges();
       clearSensorEntities();
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
+  }
+
+  /**
+   * Calculates and displays statistics (area, perimeter, center) for the current bounding box.
+   */
+  function calculateAndShowBoundingBoxStats() {
+    if (!currentBoundingBox) return;
+
+    let area = 0;
+    let perimeter = 0;
+    let centerCartographic = null;
+
+    // Helper to format large numbers with commas
+    const formatNumber = (num) => num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+    if (currentBoundingBox.rectangle) {
+      const rect = currentBoundingBox.rectangle.coordinates.getValue();
+      const ellipsoid = viewer.scene.globe.ellipsoid;      
+      const cartographicCorners = [
+          Cesium.Cartographic.fromRadians(rect.west, rect.north),
+          Cesium.Cartographic.fromRadians(rect.east, rect.north),
+          Cesium.Cartographic.fromRadians(rect.east, rect.south),
+          Cesium.Cartographic.fromRadians(rect.west, rect.south)
+        ];
+      const cartesianCorners = ellipsoid.cartographicArrayToCartesianArray(cartographicCorners);
+
+      // Calculate Area
+      // A robust way to calculate area for a rectangle on the ellipsoid.
+      // This is a geometric approximation for a spherical rectangle.
+      area =
+        (rect.east - rect.west) *
+        (ellipsoid.maximumRadius * ellipsoid.maximumRadius) *
+        Math.abs(Math.sin(rect.south) - Math.sin(rect.north));
+
+      // Calculate Perimeter
+      for (let i = 0; i < cartographicCorners.length; i++) {
+        const p1 = cartographicCorners[i];
+        const p2 = cartographicCorners[(i + 1) % cartographicCorners.length];
+        perimeter += new Cesium.EllipsoidGeodesic(p1, p2, ellipsoid).surfaceDistance;
+      }
+
+      centerCartographic = Cesium.Rectangle.center(rect);
+    } else if (currentBoundingBox.polygon) {
+      const hierarchy = currentBoundingBox.polygon.hierarchy.getValue();
+      const positions = hierarchy.positions;
+
+      if (positions.length >= 3) {
+        // Calculate Area
+        // --- NEW ROBUST APPROACH ---
+        // This self-contained function calculates the area of a spherical polygon
+        // without relying on potentially missing Cesium API functions.
+        try {
+          const ellipsoid = viewer.scene.globe.ellipsoid;
+          const radius = ellipsoid.maximumRadius; // Use average radius for spherical approximation
+          const cartographics = positions.map(p => Cesium.Cartographic.fromCartesian(p));
+
+          let totalArea = 0;
+          for (let i = 0; i < cartographics.length; i++) {
+            const p1 = cartographics[i];
+            const p2 = cartographics[(i + 1) % cartographics.length];
+
+            // Spherical excess calculation for each segment
+            const lon1 = p1.longitude;
+            const lat1 = p1.latitude;
+            const lon2 = p2.longitude;
+            const lat2 = p2.latitude;
+
+            // This is an adaptation of the shoelace formula for spherical polygons.
+            // It calculates the signed area of the trapezoid formed by the segment and the equator.
+            let segmentArea = (lon2 - lon1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+            totalArea += segmentArea;
+          }
+
+          // The final area is half the absolute value of the total, scaled by the radius squared.
+          area = Math.abs(totalArea / 2) * radius * radius;
+
+        } catch (e) { console.error("Area calculation failed:", e); area = 0; }
+
+        // Calculate Perimeter
+        const cartographics = positions.map(p => Cesium.Cartographic.fromCartesian(p));
+        for (let i = 0; i < positions.length; i++) {
+          const p1 = cartographics[i];
+          const p2 = cartographics[(i + 1) % positions.length];
+          perimeter += new Cesium.EllipsoidGeodesic(p1, p2, viewer.scene.globe.ellipsoid).surfaceDistance;
+        }
+
+        // Get Center (approximated by the center of the bounding sphere)
+        const boundingSphere = Cesium.BoundingSphere.fromPoints(positions);
+        centerCartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
+      }
+    }
+
+    // Update the UI
+    if (bbStatsArea && bbStatsPerimeter && bbStatsCenter) {
+      // Convert to km² and km for readability
+      const areaKm2 = area / 1e6;
+      const perimeterKm = perimeter / 1e3;
+
+      // Convert to sq miles and miles
+      const areaMi2 = areaKm2 * 0.386102;
+      const perimeterMi = perimeterKm * 0.621371;
+
+      // Store raw values for the copy-to-clipboard functionality
+      currentStats = {
+        areaKm2,
+        areaMi2,
+        perimeterKm,
+        perimeterMi,
+        lat: centerCartographic ? Cesium.Math.toDegrees(centerCartographic.latitude) : 0,
+        lon: centerCartographic ? Cesium.Math.toDegrees(centerCartographic.longitude) : 0,
+      };
+
+      bbStatsArea.innerHTML = `${formatNumber(areaKm2)} km² <br> (${formatNumber(areaMi2)} mi²)`;
+      bbStatsPerimeter.innerHTML = `${formatNumber(perimeterKm)} km <br> (${formatNumber(perimeterMi)} mi)`;
+
+      if (centerCartographic) {
+        // Increased precision to 6 decimal places
+        bbStatsCenter.textContent = `${currentStats.lat.toFixed(6)}, ${currentStats.lon.toFixed(6)}`;
+      } else {
+        bbStatsCenter.textContent = 'N/A';
+      }
+    }
   }
 
   // --- Bounding Box Info Popup Logic ---

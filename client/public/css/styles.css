@@ -1310,6 +1310,15 @@ html, body {
     justify-content: space-between;
     align-items: center;
   }
+  .bounding-box-actions {
+    display: flex;
+    align-items: center;
+  }
+  .bounding-box-actions .bb-info-btn,
+  .bounding-box-actions .bb-stats-btn {
+    margin-left: 8px;
+  }
+
   .bounding-box-description {
     font-size: 0.85em;
     color: #bbb;
@@ -1418,6 +1427,14 @@ html, body {
   background: #777;
 }
 
+.bb-stats-btn {
+  background: #555;
+  color: #fff;
+  border: 1px solid #777;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+}
 .bb-info-popup {
   position: absolute;
   bottom: 100%;
@@ -1483,6 +1500,26 @@ html, body {
 .bb-info-section p strong {
   color: #fff;
   font-weight: 600;
+}
+.stat-copy-btn {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  padding: 0 5px;
+  margin-left: auto; /* Pushes the button to the right */
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+.stat-copy-btn:hover {
+  color: #fff;
+}
+.stat-copy-btn i.fa-check {
+  color: #4caf50; /* Green checkmark for success */
+}
+.bb-info-section h5 {
+  display: flex;
+  align-items: center;
 }
 
 /* --- Heatmap Opacity Controls --- */
