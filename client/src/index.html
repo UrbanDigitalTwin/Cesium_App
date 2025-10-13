@@ -257,6 +257,11 @@
       </div>
     </div>
 
+    <!-- 
+      Set the base URL for CesiumJS assets. This is crucial when loading from a CDN.
+      It tells Cesium where to find its workers, widgets, and other assets.
+    -->
+    <script>window.CESIUM_BASE_URL = 'https://unpkg.com/cesium/Build/Cesium/';</script>
     <script src="https://unpkg.com/cesium/Build/Cesium/Cesium.js"></script>
     <!-- Video.js library for HLS video support -->
     <script
