@@ -1906,6 +1906,38 @@ html, body {
   color: #eee;
 }
 
+/* --- Flood Level Analysis Result Display --- */
+.flood-level-result {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  padding: 8px 4px;
+}
+.flood-level-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ccc;
+}
+.flood-level-item span {
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.flood-level-item.low span {
+  color: #4caf50;
+}
+.flood-level-item.moderate span {
+  color: #ffeb3b;
+}
+.flood-level-item.high span {
+  color: #f44336;
+}
+
+
   /* Fullscreen Image Modal */
   .modal {
     display: none;

@@ -61,6 +61,9 @@ window.onload = async function () {
   let sensorEntities = [];
   let activeSensorInfoBox = null;
 
+  // --- Flood Level Analysis Variables ---
+  let floodLevelEntities = [];
+
   /**
    * Determines the status and color of a river gauge based on its current water level
    * compared to its defined flood stages.
@@ -3147,6 +3150,7 @@ window.onload = async function () {
       clearWeatherAlerts();
       clearRiverGauges();
       clearSensorEntities();
+      clearFloodLevelEntities();
     }
     calculateAndShowBoundingBoxStats(); // Recalculate stats on save
     originalBoundingBoxCartesians = null;
@@ -3587,6 +3591,13 @@ window.onload = async function () {
       }
     });
     gaugeEntities = [];
+  }
+  
+  function clearFloodLevelEntities() {
+    floodLevelEntities.forEach(entity => {
+      viewer.entities.remove(entity);
+    });
+    floodLevelEntities = [];
   }
 
   /**
@@ -4543,6 +4554,88 @@ window.onload = async function () {
         </p>
         <p><strong>Source:</strong> Blues Notehub API</p>
       `
+    },
+    {
+      id: 'flood-level',
+      label: 'Flood Level Analysis',
+      description: 'Analyzes mock flood level points within the selected area to determine risk levels.',
+      analysisFn: async (bounds) => {
+        clearFloodLevelEntities();
+        const response = await fetch('/data/mock_flood_data.csv');
+        const csvText = await response.text();
+        const lines = csvText.split('\n').slice(1); // Skip header
+
+        const pointsInBounds = [];
+        const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
+          bounds :
+          Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
+
+        lines.forEach(line => {
+          const columns = line.split(',');
+          if (columns.length < 6) return;
+
+          const lat = parseFloat(columns[3]); // Latitude is in the 4th column (index 3)
+          const lon = parseFloat(columns[4]); // Longitude is in the 5th column (index 4)
+          const depth = parseFloat(columns[5]);
+
+          if (!isNaN(lat) && !isNaN(lon) && !isNaN(depth)) {
+            const pointCartographic = Cesium.Cartographic.fromDegrees(lon, lat);
+            if (Cesium.Rectangle.contains(analysisBounds, pointCartographic)) {
+              pointsInBounds.push({ lat, lon, depth });
+            }
+          }
+        });
+
+        let lowCount = 0, moderateCount = 0, highCount = 0;
+        const pinBuilder = new Cesium.PinBuilder();
+
+        pointsInBounds.forEach(point => {
+          let color, level;
+          if (point.depth < 1.5) {
+            color = Cesium.Color.GREEN;
+            level = 'Low';
+            lowCount++;
+          } else if (point.depth <= 3.0) {
+            color = Cesium.Color.YELLOW;
+            level = 'Moderate';
+            moderateCount++;
+          } else {
+            color = Cesium.Color.RED;
+            level = 'High';
+            highCount++;
+          }
+
+          const entity = viewer.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(point.lon, point.lat),
+            billboard: {
+              image: pinBuilder.fromColor(color, 32).toDataURL(),
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            },
+            properties: {
+              isFloodPoint: true,
+              depth: point.depth,
+              level: level
+            }
+          });
+          floodLevelEntities.push(entity);
+        });
+
+        return { low: lowCount, moderate: moderateCount, high: highCount };
+      },
+      displayFn: (result, el) => {
+        if (result.low !== undefined) {
+          el.innerHTML = `
+            <div class="flood-level-result">
+              <div class="flood-level-item low"><span>${result.low}</span> Low Risk</div>
+              <div class="flood-level-item moderate"><span>${result.moderate}</span> Moderate Risk</div>
+              <div class="flood-level-item high"><span>${result.high}</span> High Risk</div>
+            </div>
+          `;
+        } else {
+          el.textContent = result.message || 'No flood data in this area.';
+        }
+        el.classList.add('map-display');
+      }
     }
   ];
 
@@ -4703,6 +4796,7 @@ window.onload = async function () {
       bbStatsPopup.classList.remove('visible');
       clearRiverGauges();
       clearSensorEntities();
+      clearFloodLevelEntities();
     }
     updateBoundingBoxUI('initial');
     console.log('Bounding box deleted.');
