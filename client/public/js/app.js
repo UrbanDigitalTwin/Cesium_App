@@ -4561,7 +4561,7 @@ window.onload = async function () {
       description: 'Analyzes mock flood level points within the selected area to determine risk levels.',
       analysisFn: async (bounds) => {
         clearFloodLevelEntities();
-
+    
         /**
          * Maps a flood depth value to a color on a green-to-red gradient.
          * @param {number} depth The flood depth in feet.
@@ -4570,38 +4570,38 @@ window.onload = async function () {
          * @returns {Cesium.Color} The calculated color.
          */
         function getColorForFloodDepth(depth, minDepth = 0, maxDepth = 4.5) {
-            const ratio = Math.min(Math.max((depth - minDepth) / (maxDepth - minDepth), 0), 1);
-
-            let r, g;
-            if (ratio < 0.5) {
-                // Green to Yellow
-                r = 2 * ratio;
-                g = 1;
-            } else {
-                // Yellow to Red
-                r = 1;
-                g = 1 - 2 * (ratio - 0.5);
-            }
-            return new Cesium.Color(r, g, 0, 1.0);
+          const ratio = Math.min(Math.max((depth - minDepth) / (maxDepth - minDepth), 0), 1);
+    
+          let r, g;
+          if (ratio < 0.5) {
+            // Green to Yellow
+            r = 2 * ratio;
+            g = 1;
+          } else {
+            // Yellow to Red
+            r = 1;
+            g = 1 - 2 * (ratio - 0.5);
+          }
+          return new Cesium.Color(r, g, 0, 1.0);
         }
-
+    
         const response = await fetch('/data/mock_flood_data_snapped.csv');
         const csvText = await response.text();
         const lines = csvText.split('\n').slice(1); // Skip header
-
+    
         const pointsInBounds = [];
         const analysisBounds = (bounds instanceof Cesium.Rectangle) ?
           bounds :
           Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
-
+    
         lines.forEach(line => {
           const columns = line.split(',');
           if (columns.length < 10) return;
-
+    
           const depth = parseFloat(columns[5]);
           const lat = parseFloat(columns[8]); // Snapped Latitude is in the 9th column (index 8)
           const lon = parseFloat(columns[9]); // Snapped Longitude is in the 10th column (index 9)
-
+    
           if (!isNaN(lat) && !isNaN(lon) && !isNaN(depth)) {
             const pointCartographic = Cesium.Cartographic.fromDegrees(lon, lat);
             if (Cesium.Rectangle.contains(analysisBounds, pointCartographic)) {
@@ -4609,14 +4609,14 @@ window.onload = async function () {
             }
           }
         });
-
+    
         if (pointsInBounds.length === 0) {
-          return { overallRisk: 'none' };
+          return { overallRisk: 'none', stats: null };
         }
-
+    
         pointsInBounds.forEach(point => {
           const color = getColorForFloodDepth(point.depth);
-
+    
           const entity = viewer.entities.add({
             position: Cesium.Cartesian3.fromDegrees(point.lon, point.lat),
             point: {
@@ -4633,22 +4633,43 @@ window.onload = async function () {
           });
           floodLevelEntities.push(entity);
         });
-
-        // Mock Cluster Analysis: Determine overall risk based on the average depth.
-        // This is a placeholder for more complex logic to be implemented later.
+    
+        // Enhanced Risk Analysis
         const totalDepth = pointsInBounds.reduce((sum, p) => sum + p.depth, 0);
         const averageDepth = totalDepth / pointsInBounds.length;
-
+        const maxDepth = Math.max(...pointsInBounds.map(p => p.depth));
+        const highRiskThreshold = 2.5; // ft
+        const highRiskPoints = pointsInBounds.filter(p => p.depth >= highRiskThreshold).length;
+    
+        // Scoring system for risk assessment
+        let riskScore = 0;
+        // Score based on average depth
+        if (averageDepth > 0.5) riskScore += 1;
+        if (averageDepth > 1.5) riskScore += 2;
+        if (averageDepth > 2.5) riskScore += 2;
+    
+        // Score based on high-risk points
+        if (highRiskPoints > 0) riskScore += 2;
+        if (highRiskPoints / pointsInBounds.length > 0.25) riskScore += 2; // If >25% of points are high risk
+    
         let overallRisk;
-        if (averageDepth < 1.0) {
+        if (riskScore <= 2) {
           overallRisk = 'Low';
-        } else if (averageDepth <= 2.5) {
+        } else if (riskScore <= 5) {
           overallRisk = 'Moderate';
         } else {
           overallRisk = 'High';
         }
-
-        return { overallRisk };
+    
+        return {
+          overallRisk,
+          stats: {
+            averageDepth: averageDepth,
+            maxDepth: maxDepth,
+            highRiskPoints: highRiskPoints,
+            totalPoints: pointsInBounds.length
+          }
+        };
       },
       displayFn: (result, el) => {
         if (result.overallRisk && result.overallRisk !== 'none') {
@@ -4656,6 +4677,11 @@ window.onload = async function () {
             <div class="flood-level-result">
               <div class="flood-cluster-label">Overall Area Risk</div>
               <div class="flood-cluster-value risk-${result.overallRisk.toLowerCase()}">${result.overallRisk}</div>
+              <div class="flood-stats-grid">
+                <div class="flood-stat-item"><span class="sensor-label">Avg. Depth</span><span class="sensor-value">${result.stats.averageDepth.toFixed(2)} ft</span></div>
+                <div class="flood-stat-item"><span class="sensor-label">Max Depth</span><span class="sensor-value">${result.stats.maxDepth.toFixed(2)} ft</span></div>
+                <div class="flood-stat-item" style="grid-column: 1 / -1;"><span class="sensor-label">High Risk Points (>2.5ft)</span><span class="sensor-value">${result.stats.highRiskPoints} / ${result.stats.totalPoints}</span></div>
+              </div>
             </div>
           `;
         } else if (result.overallRisk === 'none') {
@@ -4664,7 +4690,20 @@ window.onload = async function () {
           el.textContent = result.message || 'No flood data in this area.';
         }
         el.classList.add('map-display');
-      }
+      },
+      metadata: `
+        <h5>Flood Level Risk Analysis</h5>
+        <p>
+          This algorithm assesses flood risk by analyzing the statistical distribution of flood depth points within the selected area. It calculates the average depth, maximum depth, and the percentage of points exceeding a high-risk threshold (2.5 ft).
+        </p>
+        <p>
+          A risk score is computed based on these statistics to classify the area as 'Low', 'Moderate', or 'High' risk. This provides a more nuanced assessment than a simple average.
+        </p>
+        <p>
+          The methodology is conceptually similar to unsupervised clustering techniques used in data science to group data points and identify areas of interest.
+        </p>
+        <p><strong>Conceptual Source:</strong> <a href="https://scikit-learn.org/stable/modules/clustering.html" target="_blank">Scikit-learn Clustering</a></p>
+      `
     }
   ];
 
