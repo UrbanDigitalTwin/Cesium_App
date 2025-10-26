@@ -4561,7 +4561,7 @@ window.onload = async function () {
       description: 'Analyzes mock flood level points within the selected area to determine risk levels.',
       analysisFn: async (bounds) => {
         clearFloodLevelEntities();
-        const response = await fetch('/data/mock_flood_data.csv');
+        const response = await fetch('/data/mock_flood_data_snapped.csv');
         const csvText = await response.text();
         const lines = csvText.split('\n').slice(1); // Skip header
 
@@ -4572,11 +4572,11 @@ window.onload = async function () {
 
         lines.forEach(line => {
           const columns = line.split(',');
-          if (columns.length < 6) return;
+          if (columns.length < 10) return;
 
-          const lat = parseFloat(columns[3]); // Latitude is in the 4th column (index 3)
-          const lon = parseFloat(columns[4]); // Longitude is in the 5th column (index 4)
           const depth = parseFloat(columns[5]);
+          const lat = parseFloat(columns[8]); // Snapped Latitude is in the 9th column (index 8)
+          const lon = parseFloat(columns[9]); // Snapped Longitude is in the 10th column (index 9)
 
           if (!isNaN(lat) && !isNaN(lon) && !isNaN(depth)) {
             const pointCartographic = Cesium.Cartographic.fromDegrees(lon, lat);
