@@ -1,0 +1,23 @@
+Point ID,Event Date (Peak),Source Type,Latitude (Dec. Deg),Longitude (Dec. Deg),"Flood Depth (AGL, ft)","Datum WSE (ft, NAVD88)",Associated Side Effect/Impact,Snapped Latitude (Road),Snapped Longitude (Road)
+UCF-R01,2022-09-30,Gauge Inference (Ian),28.583,-81.2015,4.1,33.38,Major Road Impassable (Little Econ Crossing),28.583208,-81.201563
+UCF-R02,2022-09-30,Gauge Inference (Ian),28.5815,-81.2025,3.85,33.38,Structural Damage Proxy (Near Union Park Road),28.581625,-81.202186
+UCF-R03,2017-09-12,Gauge Inference (Irma),28.582,-81.2017,2.5,29.74,"Minor Inundation, Road Closure",28.581927,-81.201645
+UCF-R04,2022-09-30,Pluvial/Rain Gauge (Ian),28.595,-81.207,1.5,31.25 (Pond),Localized Drainage Failure (Retention Pond Overflow),28.595169,-81.207791
+UCF-R05,2022-09-30,OC GIS Report Proxy (Ian),28.601,-81.203,2.05,,Residential Street Inundation (Sewage Risk Potential) ,28.602129,-81.202769
+UCF-R06,2022-09-30,OC GIS Report Proxy (Ian),28.605,-81.206,2.5,,Vehicle Submersion Risk (High Depth) / Utility Failure Threshold,28.604965,-81.206035
+UCF-R07,2022-09-30,Pluvial/Drainage Basin (Ian),28.589,-81.2095,1.25,,On-Campus Parking Lot Access Road Closure,28.589399,-81.209268
+UCF-R08,2022-09-30,Pluvial/Drainage Basin (Ian),28.5905,-81.211,0.9,,Service Road Blocked (Western Campus Boundary),28.590331,-81.210667
+UCF-R09,2022-09-30,Pluvial/Drainage Basin (Ian),28.591,-81.1995,1.45,,Utility Access Impeded on Science Drive,28.590639,-81.199494
+UCF-R10,2022-09-30,Pluvial/Drainage Basin (Ian),28.6,-81.197,1.1,,"Minor Road Closure, Extended Duration (Alafaya Vicinity)",28.600135,-81.197322
+UCF-R11,2022-09-30,OC GIS Report Proxy (Ian),28.6055,-81.1945,2.5,,Category 3 Utility Disruption (Sewage Overflow Potential) ,28.605505,-81.194502
+UCF-R12,2017-09-12,Gauge Inference (Irma),28.58,-81.1995,2.1,29.74,Moderate Road Impassable (River Crossing),28.580053,-81.19939
+UCF-R13,2022-09-30,Pluvial/Rain Gauge (Ian),28.6015,-81.2085,1.6,,"Deep Standing Water, Risk to Pedestrian Safety (Greek Park Dr)",28.601487,-81.207791
+UCF-R14,2022-09-30,Pluvial/Rain Gauge (Ian),28.602,-81.196,1.05,,Intersection Drainage Failure (Campus Access Road),28.601756,-81.19581
+UCF-R15,2022-09-30,OC GIS Report Proxy (Ian),28.5955,-81.202,1.75,,"Debris Accumulation, Prolonged Impassability (University Blvd Service)",28.59555,-81.202057
+UCF-R16,2022-09-30,Pluvial/Drainage Basin (Ian),28.596,-81.2075,0.8,,Minor Pond Edge Overflow (Lake Claire Vicinity Road),28.596011,-81.207663
+UCF-R17,2008-08-23,Gauge Inference (TS Fay),28.5835,-81.2008,2.2,28.75,Localized Road Erosion (University Blvd),28.583738,-81.200803
+UCF-R18,2022-09-30,Pluvial/Rain Gauge (Ian),28.6025,-81.195,1.55,,Blockage of Stormwater Inlets (Campus Loop Road),28.602585,-81.194802
+UCF-R19,2022-09-30,OC GIS Report Proxy (Ian),28.603,-81.204,2.2,,Emergency Service Access Impeded (Major Thoroughfare),28.60299,-81.204061
+UCF-R20,2022-09-30,Pluvial/Rain Gauge (Ian),28.59,-81.207,1.65,,High Traffic Roadway Closure (Discovery Parkway),28.589305,-81.207271
+UCF-R21,2022-09-30,Pluvial/Drainage Basin (Ian),28.585,-81.2115,1.3,,Access to Academic Buildings Cut Off (West Campus Road),28.585,-81.21142
+UCF-R22,2004-09-07,Gauge Inference (Frances),28.5825,-81.2015,1.5,27.08,Minor Flooding of Residential Yards (River Crossing Vicinity),28.582034,-81.20146
