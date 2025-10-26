@@ -4561,6 +4561,30 @@ window.onload = async function () {
       description: 'Analyzes mock flood level points within the selected area to determine risk levels.',
       analysisFn: async (bounds) => {
         clearFloodLevelEntities();
+
+        /**
+         * Maps a flood depth value to a color on a green-to-red gradient.
+         * @param {number} depth The flood depth in feet.
+         * @param {number} minDepth The minimum depth for the start of the gradient (e.g., 0).
+         * @param {number} maxDepth The maximum depth for the end of the gradient (e.g., 4.5).
+         * @returns {Cesium.Color} The calculated color.
+         */
+        function getColorForFloodDepth(depth, minDepth = 0, maxDepth = 4.5) {
+            const ratio = Math.min(Math.max((depth - minDepth) / (maxDepth - minDepth), 0), 1);
+
+            let r, g;
+            if (ratio < 0.5) {
+                // Green to Yellow
+                r = 2 * ratio;
+                g = 1;
+            } else {
+                // Yellow to Red
+                r = 1;
+                g = 1 - 2 * (ratio - 0.5);
+            }
+            return new Cesium.Color(r, g, 0, 1.0);
+        }
+
         const response = await fetch('/data/mock_flood_data_snapped.csv');
         const csvText = await response.text();
         const lines = csvText.split('\n').slice(1); // Skip header
@@ -4586,51 +4610,56 @@ window.onload = async function () {
           }
         });
 
-        let lowCount = 0, moderateCount = 0, highCount = 0;
-        const pinBuilder = new Cesium.PinBuilder();
+        if (pointsInBounds.length === 0) {
+          return { overallRisk: 'none' };
+        }
 
         pointsInBounds.forEach(point => {
-          let color, level;
-          if (point.depth < 1.5) {
-            color = Cesium.Color.GREEN;
-            level = 'Low';
-            lowCount++;
-          } else if (point.depth <= 3.0) {
-            color = Cesium.Color.YELLOW;
-            level = 'Moderate';
-            moderateCount++;
-          } else {
-            color = Cesium.Color.RED;
-            level = 'High';
-            highCount++;
-          }
+          const color = getColorForFloodDepth(point.depth);
 
           const entity = viewer.entities.add({
             position: Cesium.Cartesian3.fromDegrees(point.lon, point.lat),
-            billboard: {
-              image: pinBuilder.fromColor(color, 32).toDataURL(),
+            point: {
+              pixelSize: 10,
+              color: color,
+              outlineColor: Cesium.Color.BLACK.withAlpha(0.6),
+              outlineWidth: 1,
               disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
             properties: {
               isFloodPoint: true,
               depth: point.depth,
-              level: level
             }
           });
           floodLevelEntities.push(entity);
         });
 
-        return { low: lowCount, moderate: moderateCount, high: highCount };
+        // Mock Cluster Analysis: Determine overall risk based on the average depth.
+        // This is a placeholder for more complex logic to be implemented later.
+        const totalDepth = pointsInBounds.reduce((sum, p) => sum + p.depth, 0);
+        const averageDepth = totalDepth / pointsInBounds.length;
+
+        let overallRisk;
+        if (averageDepth < 1.0) {
+          overallRisk = 'Low';
+        } else if (averageDepth <= 2.5) {
+          overallRisk = 'Moderate';
+        } else {
+          overallRisk = 'High';
+        }
+
+        return { overallRisk };
       },
       displayFn: (result, el) => {
-        if (result.low !== undefined) {
+        if (result.overallRisk && result.overallRisk !== 'none') {
           el.innerHTML = `
             <div class="flood-level-result">
-              <div class="flood-level-item low"><span>${result.low}</span> Low Risk</div>
-              <div class="flood-level-item moderate"><span>${result.moderate}</span> Moderate Risk</div>
-              <div class="flood-level-item high"><span>${result.high}</span> High Risk</div>
+              <div class="flood-cluster-label">Overall Area Risk</div>
+              <div class="flood-cluster-value risk-${result.overallRisk.toLowerCase()}">${result.overallRisk}</div>
             </div>
           `;
+        } else if (result.overallRisk === 'none') {
+          el.textContent = 'No flood data points found in this area.';
         } else {
           el.textContent = result.message || 'No flood data in this area.';
         }
