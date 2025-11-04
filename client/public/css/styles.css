@@ -1995,3 +1995,66 @@ html, body {
     text-decoration: none;
     cursor: pointer;
   }
+
+  /* --- Emergency Event Image Detection Button --- */
+  .carousel-slide {
+    position: relative; /* Needed for absolute positioning of the button */
+  }
+
+  .detect-btn {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background-color: rgba(0, 85, 165, 0.85); /* Opaque blue */
+    color: #fff;
+    border: none;
+    border-radius: 20px; /* Pill shape */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    width: 32px; /* Start as a circle */
+    height: 32px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .detect-btn:hover {
+    background-color: #003F7F; /* Darker blue on hover */
+    width: 100px; /* Expand width on hover */
+  }
+
+  .detect-btn i {
+    font-size: 16px;
+    transition: margin 0.3s ease;
+  }
+
+  .detect-btn span {
+    white-space: nowrap;
+    font-weight: bold;
+    font-size: 14px;
+    max-width: 0;
+    opacity: 0;
+    transition: max-width 0.3s ease, opacity 0.3s ease, margin-left 0.3s ease;
+    margin-left: 0;
+  }
+
+  .detect-btn:hover span {
+    max-width: 60px; /* Allow space for the text */
+    opacity: 1;
+    margin-left: 8px; /* Space between icon and text */
+  }
+
+  .detect-btn.loading {
+    width: 120px; /* Expanded width for "Detecting..." */
+    cursor: wait;
+    background-color: #555;
+  }
+
+  .detect-btn.loading span {
+    max-width: 100px;
+    opacity: 1;
+    margin-left: 8px;
+  }
