@@ -369,7 +369,7 @@ window.onload = async function () {
 
       // 4. Make the API call
       const detectUrl =
-        "https://codetr-api-master.cis230083.projects.jetstream-cloud.org/detect";
+        "https://codetr-api.cis251126.projects.jetstream-cloud.org/detect";
       const detectResponse = await fetch(detectUrl, {
         method: "POST",
         headers: {
@@ -474,7 +474,7 @@ window.onload = async function () {
 
       // 4. Make the API call
       const detectUrl =
-        "https://codetr-api-master.cis230083.projects.jetstream-cloud.org/detect";
+        "https://codetr-api.cis251126.projects.jetstream-cloud.org/detect";
       const detectResponse = await fetch(detectUrl, {
         method: "POST",
         headers: {
