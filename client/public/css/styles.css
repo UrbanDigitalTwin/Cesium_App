@@ -1905,6 +1905,11 @@ html, body {
   font-weight: bold;
   color: #eee;
 }
+.sensor-metric.full-width {
+  grid-column: 1 / -1; /* Span across all columns */
+  margin-top: 4px;
+}
+
 
 /* --- Flood Level Analysis Result Display --- */
 .flood-level-result {

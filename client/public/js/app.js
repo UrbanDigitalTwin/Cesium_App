@@ -3692,7 +3692,7 @@ window.onload = async function () {
 
   function showSensorInfoBox(sensorData) {
     const container = document.getElementById("gaugeInfoBox"); // Re-using the gauge container
-    const { co2, humidity, temperature, time } = sensorData;
+    const { co2, humidity, temperature, time, lat, lon } = sensorData;
 
     const html = `
       <div class="gauge-info-box sensor-info-box">
@@ -3710,6 +3710,10 @@ window.onload = async function () {
           <div class="gauge-metric">
             <span class="gauge-label"><i class="fas fa-tint"></i> Humidity</span>
             <span class="gauge-value">${humidity.toFixed(1)}%</span>
+          </div>
+          <div class="gauge-metric full-width">
+            <span class="gauge-label"><i class="fas fa-map-marker-alt"></i> Coordinates</span>
+            <span class="gauge-value">${lat.toFixed(6)}, ${lon.toFixed(6)}</span>
           </div>
         </div>
         <p class="gauge-timestamp">Last Reading: ${new Date(time * 1000).toLocaleString()}</p>
