@@ -288,7 +288,7 @@ app.get("/sensor-data", async (req, res) => {
       .json({ error: "Sensor API is not configured." });
   }
 
-  const url = `https://api.notefile.net/v1/projects/${projectUID}/events?pageSize=1&sortOrder=desc&files=sensors.qo`;
+  const url = `https://api.notefile.net/v1/projects/${projectUID}/events?pageSize=50&sortOrder=desc&files=sensors.qo`;
 
   try {
     const response = await fetch(url, {

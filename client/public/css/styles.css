@@ -1885,6 +1885,62 @@ html, body {
   border-radius: 50%;
 }
 
+/* --- Sensor InfoBox Overrides --- */
+.sensor-info-box .gauge-timestamp {
+  margin-top: 8px;
+  padding-top: 8px;
+}
+
+/* --- Sensor Chart Styles --- */
+.sensor-charts-container {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.sensor-chart-tabs {
+  display: flex;
+  border-bottom: 1px solid #555;
+  margin-bottom: 12px;
+}
+.sensor-chart-tab {
+  background: none;
+  border: none;
+  color: #aaa;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  position: relative;
+  transition: color 0.2s ease;
+}
+.sensor-chart-tab:hover {
+  color: #fff;
+}
+.sensor-chart-tab.active {
+  color: #00aaff;
+  font-weight: bold;
+}
+.sensor-chart-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #00aaff;
+}
+.sensor-chart-wrapper {
+  background: rgba(0,0,0,0.2);
+  border-radius: 4px;
+  padding: 12px 8px; /* Add more vertical padding */
+  display: none; /* Hide charts by default */
+}
+.sensor-chart-wrapper.active {
+  display: block; /* Show only the active chart */
+}
+
 /* --- CO2 Sensor Result Display --- */
 .sensor-result {
   display: flex;

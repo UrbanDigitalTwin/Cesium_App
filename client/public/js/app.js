@@ -772,9 +772,9 @@ window.onload = async function () {
       // Check if it's a CO2 sensor entity
       else if (picked.id.properties && picked.id.properties.isCo2Sensor) {
         const props = picked.id.properties;
-        const sensorData = props.sensorData.getValue();
+        const sensorData = props.sensorData.getValue(); // This is the latest reading
         if (sensorData) {
-          showSensorInfoBox(sensorData);
+          showSensorInfoBox(sensorData, props.historicalEvents.getValue());
         }
       } else {
         if (activeCameraInfoBox) {
@@ -3621,19 +3621,28 @@ window.onload = async function () {
       }
 
       const latestEvent = data.events[0];
-      const readings = latestEvent.body?.readings;
+      const readings = latestEvent.body?.readings?.[0];
 
-      if (!readings || readings.length === 0) {
+      if (!readings) {
         return { message: 'No sensor readings in the latest event.' };
       }
 
-      // Assuming we only care about the first reading in the array for now.
-      const sensorData = readings[0];
-      const { lat, lon } = sensorData;
+      // Use the best available location from the event, not the (often 0,0) location from the reading itself.
+      const lat = latestEvent.best_lat;
+      const lon = latestEvent.best_lon;
 
       if (lat === undefined || lon === undefined) {
-        return { message: 'Sensor data is missing location.' };
+        return { message: 'Sensor data is missing location.', events: data.events };
       }
+
+      // Combine the correct location with the sensor readings into a single object for easier use.
+      const sensorData = {
+        ...readings,
+        lat: lat,
+        lon: lon,
+        // The 'time' in the reading is what we want, not the event 'when' timestamp.
+        time: readings.time 
+      };
 
       // Check if the sensor is within the bounding box
       const sensorCartographic = Cesium.Cartographic.fromDegrees(lon, lat);
@@ -3642,7 +3651,7 @@ window.onload = async function () {
         Cesium.Rectangle.fromCartesianArray(bounds.positions, Cesium.Ellipsoid.WGS84);
 
       if (!Cesium.Rectangle.contains(analysisBounds, sensorCartographic)) {
-        return { message: 'Sensor is outside the selected area.' };
+        return { message: 'Sensor is outside the selected area.', events: data.events };
       }
 
       // --- FIX: Create a pin from a Font Awesome icon using a canvas ---
@@ -3677,22 +3686,130 @@ window.onload = async function () {
         },
         properties: {
           isCo2Sensor: true,
-          sensorData: sensorData
+          sensorData: sensorData,
+          // Store all historical events for the chart
+          historicalEvents: data.events 
         }
       });
       sensorEntities.push(entity);
 
-      return { sensorData: sensorData };
+      return { sensorData: sensorData, events: data.events };
 
     } catch (error) {
       console.error('Failed to fetch sensor data:', error);
       return { message: 'Error fetching sensor data.' };
     }
   }
+  
+  /**
+   * Creates a historical data chart for a sensor reading using ApexCharts.
+   * @param {string} elementId The ID of the div element to render the chart in.
+   * @param {Array<object>} events The historical sensor events.
+   * @param {string} dataKey The key of the data to plot (e.g., 'co2', 'temperature').
+   * @param {string} title The title for the chart.
+   * @param {string} color The color for the chart line and points.
+   * @param {string} unit The unit for the y-axis label (e.g., 'ppm', '°C').
+   */
+  function createSensorChart(elementId, events, dataKey, title, color, unit) {
+    // --- NEW APPROACH: Validate and format data before charting ---
+    const seriesData = events
+      .map(event => {
+        const reading = event.body?.readings?.[0];
+        // Ensure both time and the specific data key exist and are valid numbers
+        if (reading && typeof reading.time === 'number' && typeof reading[dataKey] === 'number') {
+          return {
+            x: reading.time * 1000, // ApexCharts expects milliseconds
+            y: reading[dataKey].toFixed(1)
+          };
+        }
+        return null; // Return null for invalid entries
+      })
+      .filter(Boolean) // Remove any null entries
+      .reverse(); // Reverse to show oldest to newest
 
-  function showSensorInfoBox(sensorData) {
+    if (seriesData.length === 0) {
+      document.getElementById(elementId).innerHTML = `<p class="gauge-timestamp" style="text-align:center; padding-top: 50px;">No valid data for ${title}</p>`;
+      return;
+    }
+
+    const options = {
+      series: [{
+        name: title,
+        data: seriesData
+      }],
+      chart: {
+        type: 'area',
+        height: 140,
+        toolbar: { show: false },
+        zoom: { enabled: false },
+        animations: { enabled: true, easing: 'easeinout', speed: 500 }
+      },
+      colors: [color],
+      dataLabels: { enabled: false },
+      stroke: { curve: 'smooth', width: 2 },
+      fill: {
+        type: 'gradient',
+        gradient: {
+          shadeIntensity: 1,
+          opacityFrom: 0.7,
+          opacityTo: 0.2,
+          stops: [0, 90, 100]
+        }
+      },
+      grid: {
+        borderColor: 'rgba(255, 255, 255, 0.1)',
+        strokeDashArray: 3
+      },
+      title: {
+        text: title,
+        align: 'left',
+        style: { color: '#fff', fontSize: '14px' }
+      },
+      xaxis: {
+        type: 'datetime',
+        labels: { style: { colors: '#ccc' } }
+      },
+      yaxis: {
+        labels: {
+          style: { colors: '#ccc' },
+          formatter: (val) => `${val} ${unit}`
+        }
+      },
+      tooltip: {
+        theme: 'dark',
+        x: { 
+          // Format the tooltip date to Eastern Time
+          formatter: (val) => new Date(val).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric', hour12: true })
+        }
+      }
+    };
+
+    const chart = new ApexCharts(document.getElementById(elementId), options);
+    chart.render();
+  }
+
+  function showSensorInfoBox(sensorData, historicalEvents = []) {
     const container = document.getElementById("gaugeInfoBox"); // Re-using the gauge container
     const { co2, humidity, temperature, time, lat, lon } = sensorData;
+
+    // Log the historical data to the console for verification
+    console.log("Historical Sensor Events for Charting:", historicalEvents);
+
+    // Prepare chart HTML if historical data is available
+    const chartsHtml = historicalEvents.length > 0 ? `
+      <div class="sensor-charts-container">
+        <div class="sensor-chart-tabs">
+          <button class="sensor-chart-tab active" data-chart="co2Chart">CO₂</button>
+          <button class="sensor-chart-tab" data-chart="tempChart">Temperature</button>
+          <button class="sensor-chart-tab" data-chart="humidityChart">Humidity</button>
+        </div>
+        <div class="sensor-chart-content">
+          <div class="sensor-chart-wrapper active" id="co2Chart"></div>
+          <div class="sensor-chart-wrapper" id="tempChart"></div>
+          <div class="sensor-chart-wrapper" id="humidityChart"></div>
+        </div>
+      </div>
+    ` : '<p class="gauge-timestamp">No historical data available for charts.</p>';
 
     const html = `
       <div class="gauge-info-box sensor-info-box">
@@ -3716,13 +3833,55 @@ window.onload = async function () {
             <span class="gauge-value">${lat.toFixed(6)}, ${lon.toFixed(6)}</span>
           </div>
         </div>
-        <p class="gauge-timestamp">Last Reading: ${new Date(time * 1000).toLocaleString()}</p>
+        ${chartsHtml}
+        <p class="gauge-timestamp">Last Reading: ${new Date(time * 1000).toLocaleString('en-US', {
+          timeZone: 'America/New_York', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric'
+        })} ET</p>
       </div>
     `;
     container.innerHTML = html;
     container.classList.remove('hidden');
     container.querySelector('.gauge-info-close').onclick = () => container.classList.add('hidden');
     activeSensorInfoBox = container;
+
+    // If historical data exists, render the charts
+    if (historicalEvents.length > 0) {
+      // --- FIX: Lazy-load charts to ensure they render correctly in hidden tabs ---
+      const chartRendered = {
+        co2Chart: false,
+        tempChart: false,
+        humidityChart: false,
+      };
+
+      const renderChart = (chartId) => {
+        if (chartRendered[chartId]) return; // Don't re-render
+
+        if (chartId === 'co2Chart') {
+          createSensorChart('co2Chart', historicalEvents, 'co2', 'CO₂', '#88d1f1', 'ppm');
+        } else if (chartId === 'tempChart') {
+          createSensorChart('tempChart', historicalEvents, 'temperature', 'Temperature', '#f1a888', '°C');
+        } else if (chartId === 'humidityChart') {
+          createSensorChart('humidityChart', historicalEvents, 'humidity', 'Humidity', '#88f1a3', '%');
+        }
+        chartRendered[chartId] = true;
+      };
+
+      // Render the first chart immediately after a short delay for DOM update
+      setTimeout(() => {
+        renderChart('co2Chart');
+      }, 50);
+
+      // Add tab switching logic
+      const tabs = container.querySelectorAll('.sensor-chart-tab');
+      const chartWrappers = container.querySelectorAll('.sensor-chart-wrapper');
+
+      tabs.forEach(tab => tab.addEventListener('click', () => {
+        const chartId = tab.dataset.chart;
+        tabs.forEach(t => t.classList.toggle('active', t === tab));
+        chartWrappers.forEach(w => w.classList.toggle('active', w.id === chartId));
+        renderChart(chartId); // Render the chart for the now-active tab
+      }));
+    }
   }
 
   async function fetchTemperatureData(bounds) {
@@ -4528,7 +4687,7 @@ window.onload = async function () {
       analysisFn: fetchCo2Sensor,
       displayFn: (result, el) => {
         if (result.sensorData) {
-          const { co2, temperature, humidity } = result.sensorData;
+          const { co2, temperature, humidity } = result.sensorData;          
           el.innerHTML = `
             <div class="sensor-result">
               <div class="sensor-metric">
