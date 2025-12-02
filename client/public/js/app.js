@@ -2099,6 +2099,17 @@ window.onload = async function () {
             orlandoLandUseVisible = false; // Revert state on error
           }
         }
+
+        // Fly to the data with a 3D perspective
+        viewer.flyTo(orlandoLandUseDataSource, {
+          duration: 2.0,
+          offset: new Cesium.HeadingPitchRange(
+            Cesium.Math.toRadians(0), // North-up
+            Cesium.Math.toRadians(-45), // 45-degree tilt
+            0 // Let Cesium determine the range
+          )
+        });
+
         orlandoLandUseDataSource.show = true;
         landUseLegend.classList.remove('hidden');
         this.classList.add("active");
