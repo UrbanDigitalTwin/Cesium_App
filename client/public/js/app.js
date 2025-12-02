@@ -2025,7 +2025,7 @@ window.onload = async function () {
   // --- Land Use Button Logic ---
   const orlandoLandUseBtn = document.getElementById("orlandoLandUseBtn");
   const altamonteLandUseBtn = document.getElementById("altamonteLandUseBtn");
-  const landUseLegend = document.getElementById("landUseLegend");
+  const landUseLegend = document.getElementById("landUseLegend"); // This is the correct legend container
 
   if (orlandoLandUseBtn) {
     orlandoLandUseBtn.onclick = async function () {
