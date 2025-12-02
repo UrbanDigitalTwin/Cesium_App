@@ -627,6 +627,25 @@ html, body {
   box-shadow: 0 0 2px rgba(0,0,0,0.7);
 }
 
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #333;
+}
+
+.legend-item:not(:last-child) {
+  margin-bottom: 6px;
+}
+
+.legend-color-box {
+  width: 14px;
+  height: 14px;
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+}
+
 /* --- Weather Alert Display Styles --- */
 .weather-alert-list {
   display: flex;

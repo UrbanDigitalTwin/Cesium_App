@@ -69,6 +69,7 @@ window.onload = async function () {
   let altamonteLandUseLayer = null;
   let orlandoLandUseVisible = false;
   let altamonteLandUseVisible = false;
+  let orlandoLandUseDataSource = null;
   /**
    * Determines the status and color of a river gauge based on its current water level
    * compared to its defined flood stages.
@@ -2024,6 +2025,7 @@ window.onload = async function () {
   // --- Land Use Button Logic ---
   const orlandoLandUseBtn = document.getElementById("orlandoLandUseBtn");
   const altamonteLandUseBtn = document.getElementById("altamonteLandUseBtn");
+  const landUseLegend = document.getElementById("landUseLegend");
 
   if (orlandoLandUseBtn) {
     orlandoLandUseBtn.onclick = async function () {
@@ -2033,27 +2035,79 @@ window.onload = async function () {
       orlandoLandUseVisible = !orlandoLandUseVisible;
 
       if (orlandoLandUseVisible) {
-        if (!orlandoLandUseLayer) {
+        if (!orlandoLandUseDataSource) {
           try {
-            // Replace with your actual asset ID for Orlando Land Use
-            const ORLANDO_LAND_USE_ASSET_ID = 96939; // Example Asset ID
-            orlandoLandUseLayer = await Cesium.Cesium3DTileset.fromIonAssetId(ORLANDO_LAND_USE_ASSET_ID);
-            viewer.scene.primitives.add(orlandoLandUseLayer);
+            const url = 'https://orlando-open-data-orl.hub.arcgis.com/api/v3/datasets/0a7fc7335a074e499a6dd52f86059de7_0/downloads/data?format=geojson&spatialRefId=4326';
+            orlandoLandUseDataSource = await Cesium.GeoJsonDataSource.load(url);
+
+            const landUseColors = {
+              'Residential': Cesium.Color.fromCssColorString('#fbc02d'), // Yellow
+              'Commercial': Cesium.Color.fromCssColorString('#e53935'), // Red
+              'Industrial': Cesium.Color.fromCssColorString('#5d4037'), // Brown
+              'Office': Cesium.Color.fromCssColorString('#8e24aa'), // Purple
+              'Institutional/Public': Cesium.Color.fromCssColorString('#1e88e5'), // Blue
+              'Parks/Recreation': Cesium.Color.fromCssColorString('#43a047'), // Green
+              'Conservation': Cesium.Color.fromCssColorString('#00695c'), // Teal
+              'Water Body': Cesium.Color.fromCssColorString('#03a9f4'), // Light Blue
+              'Transportation/Utilities': Cesium.Color.fromCssColorString('#757575'), // Gray
+              'Mixed Use': Cesium.Color.fromCssColorString('#ff7043'), // Orange
+              'Other': Cesium.Color.fromCssColorString('#bdbdbd') // Light Gray
+            };
+
+            // Simplified mapping from LU_TYPE to a category
+            const typeMap = {
+              "Residential": "Residential",
+              "Commercial": "Commercial",
+              "Industrial": "Industrial",
+              "Office": "Office",
+              "Institutional": "Institutional/Public",
+              "Public/Institutional": "Institutional/Public",
+              "Parks and Recreation": "Parks/Recreation",
+              "Primary Conservation Network/Wetlands": "Conservation",
+              "Water Body": "Water Body",
+              "Transportation, Communication and Utilities": "Transportation/Utilities",
+              "Mixed Use": "Mixed Use"
+            };
+
+            orlandoLandUseDataSource.entities.values.forEach(entity => {
+              const luType = entity.properties.LU_TYPE.getValue();
+              let category = 'Other';
+              for (const key in typeMap) {
+                if (luType.includes(key)) {
+                  category = typeMap[key];
+                  break;
+                }
+              }
+              const color = landUseColors[category] || landUseColors['Other'];
+              entity.polygon.material = color.withAlpha(0.6);
+              entity.polygon.outline = false;
+            });
+
+            await viewer.dataSources.add(orlandoLandUseDataSource);
+
+            // Populate and show legend
+            landUseLegend.innerHTML = Object.entries(landUseColors).map(([name, color]) => `
+              <div class="legend-item">
+                <span class="legend-color-box" style="background-color: ${color.toCssColorString()};"></span>
+                <span>${name}</span>
+              </div>
+            `).join('');
+
           } catch (error) {
             console.error("Error loading Orlando land use data:", error);
             alert("Failed to load Orlando land use data.");
             orlandoLandUseVisible = false; // Revert state on error
           }
         }
-        orlandoLandUseLayer.show = true;
+        orlandoLandUseDataSource.show = true;
+        landUseLegend.classList.remove('hidden');
         this.classList.add("active");
         this.textContent = "Hide Orlando Land Use";
       } else {
-        if (orlandoLandUseLayer) {
-          orlandoLandUseLayer.show = false;
-        }
+        if (orlandoLandUseDataSource) orlandoLandUseDataSource.show = false;
+        if (landUseLegend) landUseLegend.classList.add('hidden');
         this.classList.remove("active");
-        this.textContent = "Orlando Metro Area";
+        this.textContent = "Orlando Mtro Area";
       }
       this.disabled = false;
     };
