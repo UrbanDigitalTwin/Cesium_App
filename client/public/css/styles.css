@@ -216,7 +216,7 @@ html, body {
     color: #fff;
   }
   /* Sidebar (drawer) styles */
-  #sidebarHeader {
+  #sidebarHeader, .sidebar-header {
     background: #2196f3;
     color: #fff;
     font-size: 1.4em;
@@ -227,6 +227,19 @@ html, body {
     align-items: center;
     justify-content: space-between;
   }
+  .sidebar-header button:first-of-type {
+    margin-left: auto; /* Pushes buttons to the right */
+    margin-right: 8px;
+  }
+  .static-data-header {
+    padding-top: 11px;
+    padding-bottom: 9px;
+  }
+  .live-observation-header {
+    padding-top: 11px;
+    padding-bottom: 9px;
+  }
+
   #sidebarCloseBtn {
     background: none;
     border: none;
@@ -239,13 +252,22 @@ html, body {
   #sidebarCloseBtn:hover {
     color: #ff5252;
   }
-  #sidebarContent {
+  #sidebar-scroll-container {
     flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* Important for flexbox scrolling */
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-content {
     padding: 18px 24px;
     overflow-y: auto;
+    max-height: 50%;
+    min-height: 150px; /* Prevent it from becoming too small */
   }
   .sidebar-section {
-    margin-bottom: 28px;
+    margin-bottom: 14px;
+    margin-bottom: 7px;
   }
   .sidebar-section h3 {
     margin: 0 0 10px 0;

@@ -64,6 +64,11 @@ window.onload = async function () {
   // --- Flood Level Analysis Variables ---
   let floodLevelEntities = [];
 
+  // --- Land Use Variables ---
+  let orlandoLandUseLayer = null;
+  let altamonteLandUseLayer = null;
+  let orlandoLandUseVisible = false;
+  let altamonteLandUseVisible = false;
   /**
    * Determines the status and color of a river gauge based on its current water level
    * compared to its defined flood stages.
@@ -2015,6 +2020,61 @@ window.onload = async function () {
       if (!isOpen) parent.classList.add("open");
     });
   });
+
+  // --- Land Use Button Logic ---
+  const orlandoLandUseBtn = document.getElementById("orlandoLandUseBtn");
+  const altamonteLandUseBtn = document.getElementById("altamonteLandUseBtn");
+
+  if (orlandoLandUseBtn) {
+    orlandoLandUseBtn.onclick = async function () {
+      this.disabled = true;
+      this.textContent = "Loading...";
+
+      orlandoLandUseVisible = !orlandoLandUseVisible;
+
+      if (orlandoLandUseVisible) {
+        if (!orlandoLandUseLayer) {
+          try {
+            // Replace with your actual asset ID for Orlando Land Use
+            const ORLANDO_LAND_USE_ASSET_ID = 96939; // Example Asset ID
+            orlandoLandUseLayer = await Cesium.Cesium3DTileset.fromIonAssetId(ORLANDO_LAND_USE_ASSET_ID);
+            viewer.scene.primitives.add(orlandoLandUseLayer);
+          } catch (error) {
+            console.error("Error loading Orlando land use data:", error);
+            alert("Failed to load Orlando land use data.");
+            orlandoLandUseVisible = false; // Revert state on error
+          }
+        }
+        orlandoLandUseLayer.show = true;
+        this.classList.add("active");
+        this.textContent = "Hide Orlando Land Use";
+      } else {
+        if (orlandoLandUseLayer) {
+          orlandoLandUseLayer.show = false;
+        }
+        this.classList.remove("active");
+        this.textContent = "Orlando Metro Area";
+      }
+      this.disabled = false;
+    };
+  }
+
+  if (altamonteLandUseBtn) {
+    altamonteLandUseBtn.onclick = async function () {
+      // This is a placeholder for the Altamonte Springs data.
+      // You would implement the loading and toggling logic here,
+      // similar to the Orlando button above.
+      const isVisible = this.classList.toggle("active");
+      if (isVisible) {
+        this.textContent = "Hide Altamonte Land Use";
+        alert("Altamonte Springs data layer is not yet implemented.");
+        // Example: await loadAltamonteData();
+      } else {
+        this.textContent = "City of Altamonte Springs";
+        // Example: hideAltamonteData();
+      }
+    };
+  }
 
   let trafficViewLayer = null;
   const trafficViewApiKey = "2186cbcdd16f4d6796708a4be6c969b8";
