@@ -2022,6 +2022,50 @@ window.onload = async function () {
     });
   });
 
+  // --- Optimized Land Use Height Calculation ---
+  let lastCalculatedLandUseHeight = null;
+
+  /**
+   * Calculates the appropriate height for the land use polygons based on camera altitude.
+   * This allows the polygons to sink below ground level when close to prevent obscuring
+   * 3D models, and rise above when zoomed out for better visibility.
+   * @returns {number} The calculated height in meters.
+   */
+  function calculateDynamicLandUseHeight() {
+    const cameraHeight = viewer.camera.positionCartographic.height;
+
+    // Define camera altitude thresholds for scaling
+    const minCameraHeight = 800;  // Start raising the polygons above this altitude
+    const maxCameraHeight = 8000; // Stop raising them at this altitude
+
+    // Define the corresponding height range for the polygons.
+    // -2m is enough to clip into the ground without disappearing completely.
+    // 15m is high enough to be visible over most buildings from a distance.
+    const minPolygonHeight = -2;
+    const maxPolygonHeight = 15;
+
+    // Linearly interpolate the polygon height based on the camera's altitude
+    return Cesium.Math.lerp(minPolygonHeight, maxPolygonHeight, (cameraHeight - minCameraHeight) / (maxCameraHeight - minCameraHeight));
+  }
+
+  // This function runs once per frame before the scene is rendered.
+  // It's much more performant than a CallbackProperty on every entity.
+  viewer.scene.preRender.addEventListener(function() {
+    // Only run this logic if the land use layer is visible.
+    if (!orlandoLandUseDataSource || !orlandoLandUseVisible) {
+      return;
+    }
+
+    const newHeight = calculateDynamicLandUseHeight();
+
+    // Only update if the height has changed by more than 10cm to avoid unnecessary processing.
+    if (lastCalculatedLandUseHeight !== null && Math.abs(newHeight - lastCalculatedLandUseHeight) < 0.1) {
+      return;
+    }
+    lastCalculatedLandUseHeight = newHeight;
+    orlandoLandUseDataSource.entities.values.forEach(entity => entity.polygon.height = newHeight);
+  });
+
   // --- Land Use Button Logic ---
   const orlandoLandUseBtn = document.getElementById("orlandoLandUseBtn");
   const altamonteLandUseBtn = document.getElementById("altamonteLandUseBtn");
@@ -2081,6 +2125,9 @@ window.onload = async function () {
               const color = landUseColors[category] || landUseColors['Other'];
               entity.polygon.material = color.withAlpha(0.6);
               entity.polygon.outline = false;
+              // Set initial height. The preRender event will handle dynamic updates.
+              entity.polygon.height = calculateDynamicLandUseHeight();
+              entity.polygon.heightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
             });
 
             await viewer.dataSources.add(orlandoLandUseDataSource);
