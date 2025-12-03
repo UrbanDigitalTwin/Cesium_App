@@ -2287,6 +2287,9 @@ window.onload = async function () {
         <span class="land-use-label">Land Use Type:</span>
         <span class="land-use-value">${props.LU_TYPE.getValue()}</span>
 
+        <span class="land-use-label">Land Use ID:</span>
+        <span class="land-use-value">${props.LU_CODE.getValue()}</span>
+
         <span class="land-use-label">Object ID:</span>
         <span class="land-use-value">${props.OBJECTID.getValue()}</span>
 
