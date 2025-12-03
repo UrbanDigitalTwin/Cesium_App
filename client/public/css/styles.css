@@ -1764,6 +1764,44 @@ html, body {
 }
 
 /* --- Land Use Info Dialog --- */
+/* Make the selector more specific to override .bb-boundary-dialog */
+.bb-boundary-dialog.land-use-dialog {
+  /* Override modal positioning to pin to the corner */
+  position: absolute;
+  bottom: 80px; /* Position above the bottom-right buttons */
+  right: 20px;
+  top: auto;
+  left: auto;
+  transform: translateY(0) scale(1); /* Reset transform */
+  transition: opacity 0.3s, transform 0.3s;
+
+  /* Style overrides */
+  background: rgba(25, 35, 45, 0.9);
+  backdrop-filter: blur(5px);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 320px; /* Fixed width like other info boxes */
+  max-width: 320px;
+  height: auto; /* Auto height based on content */
+  z-index: 1000; /* Ensure it's above map elements */
+}
+.bb-boundary-dialog.land-use-dialog .bb-boundary-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+.bb-boundary-dialog.land-use-dialog .bb-boundary-header h4 {
+  color: #7ac9ff;
+}
+.bb-boundary-dialog.land-use-dialog .bb-boundary-close-btn {
+  color: #aaa;
+}
+.bb-boundary-dialog.land-use-dialog .bb-boundary-close-btn:hover {
+  color: #fff;
+}
+.bb-boundary-dialog.land-use-dialog.hidden {
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+}
 .land-use-content {
   padding: 16px 24px;
   overflow-y: auto;
@@ -1773,25 +1811,20 @@ html, body {
   grid-template-columns: auto 1fr;
   gap: 12px;
   font-size: 1em;
+  align-items: center;
 }
 .land-use-label {
   font-weight: 600;
-  color: #555;
+  color: #ccc;
   text-align: right;
 }
 .land-use-value {
   font-weight: 400;
-  color: #1976d2;
-  background-color: #eef2f7;
+  color: #7ac9ff;
+  background-color: rgba(0,0,0,0.2);
   padding: 4px 8px;
   border-radius: 4px;
   word-break: break-all;
-}
-.land-use-value.area {
-  font-size: 0.9em;
-}
-.land-use-value.length {
-  font-size: 0.9em;
 }
 
 

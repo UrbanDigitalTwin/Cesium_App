@@ -785,17 +785,8 @@ window.onload = async function () {
       }
       // Check if it's a land use entity
       else if (picked.id.properties && picked.id.properties.isLandUse) {
-        const props = picked.id.properties;
-        const landUseData = {
-          lu_type: props.LU_TYPE.getValue(),
-          shape_area: props.SHAPE_Area.getValue(),
-          shape_length: props.SHAPE_Length.getValue(),
-          object_id: props.OBJECTID.getValue(),
-        };
-        showLandUseInfoDialog(landUseData);
-
-        // Highlight the selected polygon
-        picked.id.polygon.outline = true;
+        showLandUseInfoDialog(picked.id); // Pass the whole entity
+        picked.id.polygon.outline = true; // Highlight the selected polygon
         picked.id.polygon.outlineColor = Cesium.Color.WHITE;
       } else {
         if (activeCameraInfoBox) {
@@ -2254,38 +2245,73 @@ window.onload = async function () {
   const landUseCloseBtn = document.getElementById('landUseCloseBtn');
   const landUseContent = document.getElementById('landUseContent');
 
-  function showLandUseInfoDialog(data) {
-    if (!landUseDialog || !landUseContent) return;
+  function showLandUseInfoDialog(entity) {
+    if (!landUseDialog || !landUseContent || !entity.properties) return;
 
     // Un-highlight any previously selected polygon
     if (orlandoLandUseDataSource) {
       orlandoLandUseDataSource.entities.values.forEach(e => e.polygon.outline = false);
     }
 
+    const props = entity.properties;
+    const rawArea = props.SHAPE_Area.getValue();
+    const rawLength = props.SHAPE_Length.getValue();
+
+    // --- Conversion Logic ---
+    let areaSqMi = 0;
+    let lengthMi = 0;
+    let centerLat = 0;
+
+    // Get the center latitude of the polygon to make the conversion more accurate for that location.
+    if (entity.polygon && entity.polygon.hierarchy) {
+      const positions = entity.polygon.hierarchy.getValue().positions;
+      if (positions && positions.length > 0) {
+        const boundingSphere = Cesium.BoundingSphere.fromPoints(positions);
+        const centerCartographic = Cesium.Cartographic.fromCartesian(boundingSphere.center);
+        centerLat = Cesium.Math.toDegrees(centerCartographic.latitude);
+      }
+    }
+
+    // Conversion factors (approximations)
+    const milesPerDegreeLat = 69.0; // Approx. miles per degree of latitude
+    const milesPerDegreeLon = Math.cos(Cesium.Math.toRadians(centerLat)) * 69.172; // Miles per degree of longitude at a given latitude
+
+    // Approximate the area and length. This is a rough estimate.
+    // For area, we multiply by the conversion factors for both axes.
+    areaSqMi = rawArea * milesPerDegreeLat * milesPerDegreeLon;
+    // For length, we use an average of the two factors.
+    lengthMi = rawLength * ((milesPerDegreeLat + milesPerDegreeLon) / 2);
+
     landUseContent.innerHTML = `
       <div class="land-use-details">
         <span class="land-use-label">Land Use Type:</span>
-        <span class="land-use-value">${data.lu_type}</span>
+        <span class="land-use-value">${props.LU_TYPE.getValue()}</span>
 
         <span class="land-use-label">Object ID:</span>
-        <span class="land-use-value">${data.object_id}</span>
+        <span class="land-use-value">${props.OBJECTID.getValue()}</span>
 
         <span class="land-use-label">Shape Area:</span>
-        <span class="land-use-value area">${data.shape_area.toExponential(4)}</span>
+        <span class="land-use-value area">
+          ${areaSqMi.toFixed(4)} mi²
+          <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawArea.toExponential(3)} deg²)</small>
+        </span>
 
         <span class="land-use-label">Shape Length:</span>
-        <span class="land-use-value length">${data.shape_length.toExponential(4)}</span>
+        <span class="land-use-value length">
+          ${lengthMi.toFixed(4)} mi
+          <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawLength.toExponential(3)} deg)</small>
+        </span>
       </div>
     `;
 
-    landUseOverlay.classList.remove('hidden');
+    // Add the new style class to the dialog
+    landUseDialog.classList.add('land-use-dialog'); // This class now handles positioning
     landUseDialog.classList.remove('hidden');
   }
 
   function hideLandUseInfoDialog() {
     if (landUseDialog && landUseOverlay) {
       landUseDialog.classList.add('hidden');
-      landUseOverlay.classList.add('hidden');
     }
   }
 
