@@ -1763,6 +1763,38 @@ html, body {
   color: #1976d2;
 }
 
+/* --- Land Use Info Dialog --- */
+.land-use-content {
+  padding: 16px 24px;
+  overflow-y: auto;
+}
+.land-use-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  font-size: 1em;
+}
+.land-use-label {
+  font-weight: 600;
+  color: #555;
+  text-align: right;
+}
+.land-use-value {
+  font-weight: 400;
+  color: #1976d2;
+  background-color: #eef2f7;
+  padding: 4px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+}
+.land-use-value.area {
+  font-size: 0.9em;
+}
+.land-use-value.length {
+  font-size: 0.9em;
+}
+
+
 /* SVI Source Info */
 #svi-source-info {
   font-size: 12px;

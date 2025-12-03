@@ -276,6 +276,18 @@
       </div>
     </div>
 
+    <!-- Land Use Info Dialog -->
+    <div id="landUseOverlay" class="modal-overlay hidden"></div>
+    <div id="landUseDialog" class="bb-boundary-dialog hidden">
+      <div class="bb-boundary-header">
+        <h4>Land Use Details</h4>
+        <button id="landUseCloseBtn" class="bb-boundary-close-btn">&times;</button>
+      </div>
+      <div id="landUseContent" class="land-use-content">
+        <!-- Content will be populated by app.js -->
+      </div>
+    </div>
+
     <!-- 
       Set the base URL for CesiumJS assets. This is crucial when loading from a CDN.
       It tells Cesium where to find its workers, widgets, and other assets.

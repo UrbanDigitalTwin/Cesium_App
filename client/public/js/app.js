@@ -782,6 +782,21 @@ window.onload = async function () {
         if (sensorData) {
           showSensorInfoBox(sensorData, props.historicalEvents.getValue());
         }
+      }
+      // Check if it's a land use entity
+      else if (picked.id.properties && picked.id.properties.isLandUse) {
+        const props = picked.id.properties;
+        const landUseData = {
+          lu_type: props.LU_TYPE.getValue(),
+          shape_area: props.SHAPE_Area.getValue(),
+          shape_length: props.SHAPE_Length.getValue(),
+          object_id: props.OBJECTID.getValue(),
+        };
+        showLandUseInfoDialog(landUseData);
+
+        // Highlight the selected polygon
+        picked.id.polygon.outline = true;
+        picked.id.polygon.outlineColor = Cesium.Color.WHITE;
       } else {
         if (activeCameraInfoBox) {
           activeCameraInfoBox.style.display = "none";
@@ -814,6 +829,12 @@ window.onload = async function () {
         activeSensorInfoBox.classList.add('hidden');
         activeSensorInfoBox.innerHTML = '';
         activeSensorInfoBox = null;
+      }
+      // Hide land use dialog if clicking off
+      hideLandUseInfoDialog();
+      // Un-highlight any selected land use polygon
+      if (orlandoLandUseDataSource) {
+        orlandoLandUseDataSource.entities.values.forEach(e => e.polygon.outline = false);
       }
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -2128,6 +2149,9 @@ window.onload = async function () {
               // Set initial height. The preRender event will handle dynamic updates.
               entity.polygon.height = calculateDynamicLandUseHeight();
               entity.polygon.heightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+
+              // Add a flag to identify these entities on click
+              entity.properties.addProperty('isLandUse', true);
             });
 
             await viewer.dataSources.add(orlandoLandUseDataSource);
@@ -2163,6 +2187,7 @@ window.onload = async function () {
         this.textContent = "Hide Orlando Land Use";
       } else {
         if (orlandoLandUseDataSource) orlandoLandUseDataSource.show = false;
+        hideLandUseInfoDialog(); // Hide dialog when layer is turned off
         if (landUseLegend) landUseLegend.classList.add('hidden');
         this.classList.remove("active");
         this.textContent = "Orlando Mtro Area";
@@ -2222,6 +2247,50 @@ window.onload = async function () {
       }
     };
   }
+
+  // --- Land Use Info Dialog Logic ---
+  const landUseDialog = document.getElementById('landUseDialog');
+  const landUseOverlay = document.getElementById('landUseOverlay');
+  const landUseCloseBtn = document.getElementById('landUseCloseBtn');
+  const landUseContent = document.getElementById('landUseContent');
+
+  function showLandUseInfoDialog(data) {
+    if (!landUseDialog || !landUseContent) return;
+
+    // Un-highlight any previously selected polygon
+    if (orlandoLandUseDataSource) {
+      orlandoLandUseDataSource.entities.values.forEach(e => e.polygon.outline = false);
+    }
+
+    landUseContent.innerHTML = `
+      <div class="land-use-details">
+        <span class="land-use-label">Land Use Type:</span>
+        <span class="land-use-value">${data.lu_type}</span>
+
+        <span class="land-use-label">Object ID:</span>
+        <span class="land-use-value">${data.object_id}</span>
+
+        <span class="land-use-label">Shape Area:</span>
+        <span class="land-use-value area">${data.shape_area.toExponential(4)}</span>
+
+        <span class="land-use-label">Shape Length:</span>
+        <span class="land-use-value length">${data.shape_length.toExponential(4)}</span>
+      </div>
+    `;
+
+    landUseOverlay.classList.remove('hidden');
+    landUseDialog.classList.remove('hidden');
+  }
+
+  function hideLandUseInfoDialog() {
+    if (landUseDialog && landUseOverlay) {
+      landUseDialog.classList.add('hidden');
+      landUseOverlay.classList.add('hidden');
+    }
+  }
+
+  if (landUseCloseBtn) landUseCloseBtn.onclick = hideLandUseInfoDialog;
+  if (landUseOverlay) landUseOverlay.onclick = hideLandUseInfoDialog;
 
   // --- FDOT Traffic Cameras Integration ---
   let fdotCameraEntities = [];
