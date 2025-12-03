@@ -69,6 +69,7 @@ window.onload = async function () {
   let altamonteLandUseLayer = null;
   let orlandoLandUseVisible = false;
   let altamonteLandUseVisible = false;
+  let orlandoDriDataSource = null;
   let orlandoLandUseDataSource = null;
   /**
    * Determines the status and color of a river gauge based on its current water level
@@ -826,6 +827,9 @@ window.onload = async function () {
       // Un-highlight any selected land use polygon
       if (orlandoLandUseDataSource) {
         orlandoLandUseDataSource.entities.values.forEach(e => e.polygon.outline = false);
+      }
+      if (orlandoDriDataSource) {
+        orlandoDriDataSource.entities.values.forEach(e => e.polygon.outline = false);
       }
     }
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
@@ -2075,7 +2079,9 @@ window.onload = async function () {
       return;
     }
     lastCalculatedLandUseHeight = newHeight;
-    orlandoLandUseDataSource.entities.values.forEach(entity => entity.polygon.height = newHeight);
+    if (orlandoLandUseDataSource) orlandoLandUseDataSource.entities.values.forEach(entity => entity.polygon.height = newHeight);
+    // Also update the DRI layer if it's visible
+    if (orlandoDriDataSource) orlandoDriDataSource.entities.values.forEach(entity => entity.polygon.height = newHeight);
   });
 
   // --- Land Use Button Logic ---
@@ -2093,15 +2099,20 @@ window.onload = async function () {
       if (orlandoLandUseVisible) {
         if (!orlandoLandUseDataSource) {
           try {
-            const url = 'https://orlando-open-data-orl.hub.arcgis.com/api/v3/datasets/0a7fc7335a074e499a6dd52f86059de7_0/downloads/data?format=geojson&spatialRefId=4326';
-            orlandoLandUseDataSource = await Cesium.GeoJsonDataSource.load(url);
+            const landUseUrl = 'https://orlando-open-data-orl.hub.arcgis.com/api/v3/datasets/0a7fc7335a074e499a6dd52f86059de7_0/downloads/data?format=geojson&spatialRefId=4326';
+            const driUrl = 'https://orlando-open-data-orl.hub.arcgis.com/api/v3/datasets/72006fd363a8426bb0e6d6648ff0188b_0/downloads/data?format=geojson&spatialRefId=4326';
+
+            // Load both datasources concurrently
+            [orlandoLandUseDataSource, orlandoDriDataSource] = await Promise.all([
+              Cesium.GeoJsonDataSource.load(landUseUrl),
+              Cesium.GeoJsonDataSource.load(driUrl)
+            ]);
 
             const landUseColors = {
               'Residential': Cesium.Color.fromCssColorString('#fbc02d'), // Yellow
               'Commercial': Cesium.Color.fromCssColorString('#e53935'), // Red
               'Industrial': Cesium.Color.fromCssColorString('#5d4037'), // Brown
               'Office': Cesium.Color.fromCssColorString('#8e24aa'), // Purple
-              'Institutional/Public': Cesium.Color.fromCssColorString('#1e88e5'), // Blue
               'Parks/Recreation': Cesium.Color.fromCssColorString('#43a047'), // Green
               'Conservation': Cesium.Color.fromCssColorString('#00695c'), // Teal
               'Water Body': Cesium.Color.fromCssColorString('#03a9f4'), // Light Blue
@@ -2109,6 +2120,8 @@ window.onload = async function () {
               'Mixed Use': Cesium.Color.fromCssColorString('#ff7043'), // Orange
               'Other': Cesium.Color.fromCssColorString('#bdbdbd') // Light Gray
             };
+            const driColor = Cesium.Color.fromCssColorString('#f06292'); // Pink for DRI
+            const institutionalColor = Cesium.Color.fromCssColorString('#1e88e5'); // Blue for Institutional
 
             // Simplified mapping from LU_TYPE to a category
             const typeMap = {
@@ -2116,7 +2129,7 @@ window.onload = async function () {
               "Commercial": "Commercial",
               "Industrial": "Industrial",
               "Office": "Office",
-              "Institutional": "Institutional/Public",
+              "Institutional": "Institutional/Public", // Will be overridden for DRI
               "Public/Institutional": "Institutional/Public",
               "Parks and Recreation": "Parks/Recreation",
               "Primary Conservation Network/Wetlands": "Conservation",
@@ -2125,6 +2138,7 @@ window.onload = async function () {
               "Mixed Use": "Mixed Use"
             };
 
+            // Process the main land use data
             orlandoLandUseDataSource.entities.values.forEach(entity => {
               const luType = entity.properties.LU_TYPE.getValue();
               let category = 'Other';
@@ -2134,7 +2148,11 @@ window.onload = async function () {
                   break;
                 }
               }
-              const color = landUseColors[category] || landUseColors['Other'];
+              let color = landUseColors[category] || landUseColors['Other'];
+              // Use the specific institutional color
+              if (category === 'Institutional/Public') {
+                color = institutionalColor;
+              }
               entity.polygon.material = color.withAlpha(0.6);
               entity.polygon.outline = false;
               // Set initial height. The preRender event will handle dynamic updates.
@@ -2145,15 +2163,32 @@ window.onload = async function () {
               entity.properties.addProperty('isLandUse', true);
             });
 
-            await viewer.dataSources.add(orlandoLandUseDataSource);
+            // Process the DRI data
+            orlandoDriDataSource.entities.values.forEach(entity => {
+              entity.polygon.material = driColor.withAlpha(0.6);
+              entity.polygon.outline = false;
+              entity.polygon.height = calculateDynamicLandUseHeight();
+              entity.polygon.heightReference = Cesium.HeightReference.RELATIVE_TO_GROUND;
+              entity.properties.addProperty('isLandUse', true);
+              entity.properties.addProperty('isDRI', true); // Add a flag for DRI entities
+            });
+
+            await Promise.all([
+              viewer.dataSources.add(orlandoLandUseDataSource),
+              viewer.dataSources.add(orlandoDriDataSource)
+            ]);
 
             // Populate and show legend
-            landUseLegend.innerHTML = Object.entries(landUseColors).map(([name, color]) => `
+            const legendItems = Object.entries(landUseColors).map(([name, color]) => `
               <div class="legend-item">
                 <span class="legend-color-box" style="background-color: ${color.toCssColorString()};"></span>
                 <span>${name}</span>
               </div>
-            `).join('');
+            `);
+            // Add Institutional and DRI to the legend
+            legendItems.push(`<div class="legend-item"><span class="legend-color-box" style="background-color: ${institutionalColor.toCssColorString()};"></span><span>Institutional/Public</span></div>`);
+            legendItems.push(`<div class="legend-item"><span class="legend-color-box" style="background-color: ${driColor.toCssColorString()};"></span><span>DRI</span></div>`);
+            landUseLegend.innerHTML = legendItems.join('');
 
           } catch (error) {
             console.error("Error loading Orlando land use data:", error);
@@ -2173,11 +2208,13 @@ window.onload = async function () {
         });
 
         orlandoLandUseDataSource.show = true;
+        if (orlandoDriDataSource) orlandoDriDataSource.show = true;
         landUseLegend.classList.remove('hidden');
         this.classList.add("active");
         this.textContent = "Hide Orlando Land Use";
       } else {
         if (orlandoLandUseDataSource) orlandoLandUseDataSource.show = false;
+        if (orlandoDriDataSource) orlandoDriDataSource.show = false;
         hideLandUseInfoDialog(); // Hide dialog when layer is turned off
         if (landUseLegend) landUseLegend.classList.add('hidden');
         this.classList.remove("active");
@@ -2252,6 +2289,9 @@ window.onload = async function () {
     if (orlandoLandUseDataSource) {
       orlandoLandUseDataSource.entities.values.forEach(e => e.polygon.outline = false);
     }
+    if (orlandoDriDataSource) {
+      orlandoDriDataSource.entities.values.forEach(e => e.polygon.outline = false);
+    }
 
     const props = entity.properties;
     const rawArea = props.SHAPE_Area.getValue();
@@ -2282,30 +2322,60 @@ window.onload = async function () {
     // For length, we use an average of the two factors.
     lengthMi = rawLength * ((milesPerDegreeLat + milesPerDegreeLon) / 2);
 
-    landUseContent.innerHTML = `
-      <div class="land-use-details">
-        <span class="land-use-label">Land Use Type:</span>
-        <span class="land-use-value">${props.LU_TYPE.getValue()}</span>
+    // Check if it's a DRI entity
+    if (props.isDRI && props.isDRI.getValue()) {
+      const approvalDate = props.ApprovalDate.getValue();
+      const formattedDate = approvalDate ? new Date(approvalDate).toLocaleDateString() : 'N/A';
+      landUseContent.innerHTML = `
+        <div class="land-use-details">
+          <span class="land-use-label">DRI Name:</span>
+          <span class="land-use-value">${props.DRIName.getValue()}</span>
 
-        <span class="land-use-label">Land Use ID:</span>
-        <span class="land-use-value">${props.LU_CODE.getValue()}</span>
+          <span class="land-use-label">Approval Date:</span>
+          <span class="land-use-value">${formattedDate}</span>
 
-        <span class="land-use-label">Object ID:</span>
-        <span class="land-use-value">${props.OBJECTID.getValue()}</span>
+          <span class="land-use-label">Document #:</span>
+          <span class="land-use-value">${props.DocumentNumber.getValue()}</span>
 
-        <span class="land-use-label">Shape Area:</span>
-        <span class="land-use-value area">
-          ${areaSqMi.toFixed(4)} mi²
-          <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawArea.toExponential(3)} deg²)</small>
-        </span>
+          <span class="land-use-label">Area:</span>
+          <span class="land-use-value area">
+            ${areaSqMi.toFixed(4)} mi²
+            <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawArea.toExponential(3)} deg²)</small>
+          </span>
 
-        <span class="land-use-label">Shape Length:</span>
-        <span class="land-use-value length">
-          ${lengthMi.toFixed(4)} mi
-          <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawLength.toExponential(3)} deg)</small>
-        </span>
-      </div>
-    `;
+          <span class="land-use-label">Perimeter:</span>
+          <span class="land-use-value length">
+            ${lengthMi.toFixed(4)} mi
+            <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawLength.toExponential(3)} deg)</small>
+          </span>
+        </div>
+      `;
+    } else {
+      landUseContent.innerHTML = `
+        <div class="land-use-details">
+          <span class="land-use-label">Land Use Type:</span>
+          <span class="land-use-value">${props.LU_TYPE.getValue()}</span>
+
+          <span class="land-use-label">Land Use ID:</span>
+          <span class="land-use-value">${props.LU_CODE.getValue()}</span>
+
+          <span class="land-use-label">Object ID:</span>
+          <span class="land-use-value">${props.OBJECTID.getValue()}</span>
+
+          <span class="land-use-label">Area:</span>
+          <span class="land-use-value area">
+            ${areaSqMi.toFixed(4)} mi²
+            <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawArea.toExponential(3)} deg²)</small>
+          </span>
+
+          <span class="land-use-label">Perimeter:</span>
+          <span class="land-use-value length">
+            ${lengthMi.toFixed(4)} mi
+            <small style="display:block; opacity:0.6; margin-top:2px;">(Raw: ${rawLength.toExponential(3)} deg)</small>
+          </span>
+        </div>
+      `;
+    }
 
     // Add the new style class to the dialog
     landUseDialog.classList.add('land-use-dialog'); // This class now handles positioning

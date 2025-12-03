@@ -1674,7 +1674,6 @@ html, body {
   color: #1976d2;
   font-weight: 600;
 }
-
 .bb-boundary-close-btn {
   background: none;
   border: none;
@@ -1684,7 +1683,6 @@ html, body {
   transition: color 0.2s;
   line-height: 1;
 }
-
 .bb-boundary-close-btn:hover {
   color: #ff5252;
 }
@@ -1693,10 +1691,9 @@ html, body {
   display: flex;
   flex-direction: column;
   padding: 16px 24px;
-  overflow: hidden; /* Let the list handle scrolling */
+  overflow: hidden;
   flex-grow: 1;
 }
-
 .bb-boundary-search {
   width: 100%;
   padding: 12px 16px;
@@ -1707,18 +1704,15 @@ html, body {
   box-sizing: border-box;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
-
 .bb-boundary-search:focus {
   outline: none;
   border-color: #1976d2;
   box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
 }
-
 .bb-boundary-list {
   overflow-y: auto;
   flex-grow: 1;
 }
-
 .bb-boundary-list::-webkit-scrollbar {
   width: 8px;
 }
@@ -1733,7 +1727,6 @@ html, body {
 .bb-boundary-list::-webkit-scrollbar-thumb:hover {
   background: #aaa;
 }
-
 .bb-boundary-category {
   font-size: 0.9em;
   font-weight: 600;
@@ -1743,7 +1736,6 @@ html, body {
   border-bottom: 1px solid #e0e4ea;
   padding-bottom: 4px;
 }
-
 .bb-boundary-item {
   display: block;
   width: 100%;
@@ -1756,7 +1748,6 @@ html, body {
   cursor: pointer;
   transition: background-color 0.2s, color 0.2s;
 }
-
 .bb-boundary-item:hover,
 .bb-boundary-item.keyboard-highlight {
   background-color: #e3f2fd;
@@ -1811,12 +1802,13 @@ html, body {
   grid-template-columns: auto 1fr;
   gap: 12px;
   font-size: 1em;
-  align-items: center;
+  align-items: start; /* Align to top for multi-line values */
 }
 .land-use-label {
   font-weight: 600;
   color: #ccc;
   text-align: right;
+  padding-top: 4px; /* Align with text in value box */
 }
 .land-use-value {
   font-weight: 400;
@@ -1824,10 +1816,8 @@ html, body {
   background-color: rgba(0,0,0,0.2);
   padding: 4px 8px;
   border-radius: 4px;
-  word-break: break-all;
+  word-break: break-word; /* Better word breaking */
 }
-
-
 /* SVI Source Info */
 #svi-source-info {
   font-size: 12px;
